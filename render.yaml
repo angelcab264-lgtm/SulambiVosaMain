@@ -3,7 +3,6 @@ services:
   - type: web
     name: sulambi-backend
     env: python
-    region: oregon
     plan: free
     buildCommand: cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-backend-main/sulambi-backend-main" && pip install -r requirements.txt
     startCommand: cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-backend-main/sulambi-backend-main" && chmod +x start.sh && ./start.sh
@@ -34,7 +33,6 @@ services:
   - type: web
     name: sulambi-frontend
     env: static
-    plan: free
     buildCommand: cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main" && chmod +x build.sh && ./build.sh
     staticPublishPath: Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main/dist
     envVars:
