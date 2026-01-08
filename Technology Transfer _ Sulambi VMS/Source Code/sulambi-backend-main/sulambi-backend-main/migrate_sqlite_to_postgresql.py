@@ -405,6 +405,7 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                                             print(f"      Debug: Column '{col_name}' (lowercase: '{col_name_lower}') detected as {pg_col_type}", flush=True)
                                             debugged_columns.add(col_name_lower)
                                         # Try to get the actual column type directly
+                                        actual_type_checked = False
                                         try:
                                             pg_cursor.execute("""
                                                 SELECT data_type 
@@ -425,13 +426,17 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                                                 if actual_type == 'BIGINT':
                                                     # Column is actually BIGINT, use it
                                                     values.append(val)
+                                                    actual_type_checked = True
                                                     continue
                                         except:
                                             pass
-                                        # This should be BIGINT, but column is INTEGER
-                                        # We cannot insert this value - it will fail
-                                        # Skip this row with a clear error message
-                                        raise ValueError(f"Column '{col_name}' is INTEGER but contains timestamp value {val} (milliseconds) which exceeds INTEGER range. This column should be BIGINT in PostgreSQL. Please update the table schema.")
+                                        
+                                        # Only raise error if we didn't find it's actually BIGINT
+                                        if not actual_type_checked:
+                                            # This should be BIGINT, but column is INTEGER
+                                            # We cannot insert this value - it will fail
+                                            # Skip this row with a clear error message
+                                            raise ValueError(f"Column '{col_name}' is INTEGER but contains timestamp value {val} (milliseconds) which exceeds INTEGER range. This column should be BIGINT in PostgreSQL. Please update the table schema.")
                                     else:
                                         # Regular integer overflow
                                         print(f"      Warning: Integer value {val} exceeds INTEGER range for column {col_name}, setting to NULL", flush=True)
