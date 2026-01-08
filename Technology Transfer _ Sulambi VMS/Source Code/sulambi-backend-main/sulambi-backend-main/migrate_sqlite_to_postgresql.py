@@ -132,14 +132,8 @@ def migrate_table(table_name):
             print(f"  ⚠️  Or create tables manually in PostgreSQL", flush=True)
             return
         
-        # Clear existing data (optional - comment out if you want to append)
-        try:
-            pg_cursor.execute(f"TRUNCATE TABLE {table_name} CASCADE")
-            pg_conn.commit()
-            print(f"  ✓ Cleared existing data from PostgreSQL table", flush=True)
-        except Exception as e:
-            print(f"  ⚠️  Could not clear table: {e}", flush=True)
-            pg_conn.rollback()
+        # Note: Data is already cleared before migration starts (see above)
+        # This section is kept for reference but data should already be cleared
         
         # Get PostgreSQL column types to handle type conversion
         pg_cursor.execute("""
@@ -211,14 +205,45 @@ def migrate_table(table_name):
         except:
             pass  # Connection might already be closed
 
-# Migrate each table
+# Clear ALL existing data from PostgreSQL tables BEFORE migration
+print("\n" + "="*70, flush=True)
+print("CLEARING EXISTING DATA FROM POSTGRESQL TABLES", flush=True)
+print("="*70, flush=True)
+
+# Get all tables from PostgreSQL
+pg_cursor.execute("""
+    SELECT table_name 
+    FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_type = 'BASE TABLE'
+    ORDER BY table_name;
+""")
+pg_tables = [row[0] for row in pg_cursor.fetchall()]
+
+cleared_count = 0
+for pg_table in pg_tables:
+    try:
+        # Disable foreign key checks temporarily (PostgreSQL doesn't have this, but we use CASCADE)
+        pg_cursor.execute(f"TRUNCATE TABLE {pg_table} CASCADE")
+        cleared_count += 1
+        print(f"  ✓ Cleared table: {pg_table}", flush=True)
+    except Exception as e:
+        print(f"  ⚠️  Could not clear table {pg_table}: {e}", flush=True)
+        pg_conn.rollback()
+
+pg_conn.commit()
+print(f"\n✓ Cleared {cleared_count}/{len(pg_tables)} PostgreSQL tables", flush=True)
+print("="*70 + "\n", flush=True)
+
+# Now migrate each table
+print("Starting data migration...\n", flush=True)
 success_count = 0
 for table in tables:
     try:
         migrate_table(table)
         success_count += 1
     except Exception as e:
-        print(f"❌ Failed to migrate {table}: {e}")
+        print(f"❌ Failed to migrate {table}: {e}", flush=True)
 
 print(f"\n{'='*70}", flush=True)
 print(f"MIGRATION COMPLETE", flush=True)
