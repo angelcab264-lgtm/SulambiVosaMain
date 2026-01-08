@@ -65,13 +65,24 @@ try:
     print()
     
     # Columns that need to be changed from INTEGER to BIGINT
+    # Note: PostgreSQL table names might be lowercase, so we'll find them case-insensitively
     tables_to_fix = {
         'internalEvents': ['durationStart', 'durationEnd', 'evaluationSendTime'],
         'externalEvents': ['durationStart', 'durationEnd', 'evaluationSendTime'],
         'volunteerParticipationHistory': ['firstEventDate', 'lastEventDate', 'calculatedAt', 'lastUpdated']
     }
     
-    for table_name, columns in tables_to_fix.items():
+    # Also add lowercase versions in case they exist
+    tables_to_fix_lower = {
+        'internalevents': ['durationstart', 'durationend', 'evaluationsendtime'],
+        'externalevents': ['durationstart', 'durationend', 'evaluationsendtime'],
+        'volunteerparticipationhistory': ['firsteventdate', 'lasteventdate', 'calculatedat', 'lastupdated']
+    }
+    
+    # Merge both dictionaries
+    all_tables_to_fix = {**tables_to_fix, **tables_to_fix_lower}
+    
+    for table_name, columns in all_tables_to_fix.items():
         print(f"Fixing table: {table_name}")
         
         # Check if table exists (case-insensitive)
