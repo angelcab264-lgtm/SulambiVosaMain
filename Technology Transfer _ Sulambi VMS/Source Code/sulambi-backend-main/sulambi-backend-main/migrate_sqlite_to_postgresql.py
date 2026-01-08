@@ -122,10 +122,19 @@ def get_columns(cursor, table_name):
     cursor.execute(f"PRAGMA table_info({table_name})")
     return cursor.fetchall()
 
-def migrate_table(table_name):
-    """Migrate a single table from SQLite to PostgreSQL"""
+def migrate_table(table_name, test_mode=False, limit_rows=None):
+    """Migrate a single table from SQLite to PostgreSQL
+    
+    Args:
+        table_name: Name of the table to migrate
+        test_mode: If True, only migrate first 5 rows (or limit_rows if specified)
+        limit_rows: Number of rows to migrate (overrides test_mode default of 5)
+    Returns:
+        tuple: (success: bool, rows_migrated: int, total_rows: int)
+    """
+    test_label = " [TEST MODE - 5 rows]" if test_mode and limit_rows is None else f" [TEST MODE - {limit_rows} rows]" if limit_rows else ""
     print(f"\n{'='*70}", flush=True)
-    print(f"Migrating table: {table_name}", flush=True)
+    print(f"Migrating table: {table_name}{test_label}", flush=True)
     print(f"{'='*70}", flush=True)
     
     try:
@@ -133,15 +142,24 @@ def migrate_table(table_name):
         columns = get_columns(sqlite_cursor, table_name)
         print(f"  Found {len(columns)} columns", flush=True)
         
-        # Get all data from SQLite
-        sqlite_cursor.execute(f"SELECT * FROM {table_name}")
-        rows = sqlite_cursor.fetchall()
+        # Get total row count first
+        sqlite_cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+        total_rows_in_db = sqlite_cursor.fetchone()[0]
         
-        if len(rows) == 0:
+        if total_rows_in_db == 0:
             print(f"  ⚠️  Table is empty, skipping...", flush=True)
-            return
+            return (True, 0, 0)
         
-        print(f"  Found {len(rows)} rows to migrate", flush=True)
+        # Get data from SQLite (limited if test_mode)
+        if test_mode or limit_rows:
+            limit = limit_rows if limit_rows else 5
+            sqlite_cursor.execute(f"SELECT * FROM {table_name} LIMIT {limit}")
+            rows = sqlite_cursor.fetchall()
+            print(f"  Found {len(rows)} rows to migrate (out of {total_rows_in_db} total)", flush=True)
+        else:
+            sqlite_cursor.execute(f"SELECT * FROM {table_name}")
+            rows = sqlite_cursor.fetchall()
+            print(f"  Found {len(rows)} rows to migrate", flush=True)
         
         # Get column names
         column_names = [col[1] for col in columns]
@@ -297,6 +315,7 @@ def migrate_table(table_name):
         
         pg_conn.commit()
         print(f"  ✓ Successfully migrated {inserted}/{len(rows)} rows", flush=True)
+        return (True, inserted, total_rows_in_db)
         
     except Exception as e:
         print(f"  ❌ Error migrating table {table_name}: {e}", flush=True)
@@ -306,6 +325,7 @@ def migrate_table(table_name):
             pg_conn.rollback()
         except:
             pass  # Connection might already be closed
+        return (False, 0, total_rows_in_db if 'total_rows_in_db' in locals() else 0)
 
 # Clear ALL existing data from PostgreSQL tables BEFORE migration
 print("\n" + "="*70, flush=True)
@@ -402,13 +422,135 @@ pg_conn.commit()
 print(f"\n✓ Cleared {cleared_count}/{len(pg_tables)} PostgreSQL tables", flush=True)
 print("="*70 + "\n", flush=True)
 
-# Now migrate each table
-print("Starting data migration...\n", flush=True)
-success_count = 0
+# STEP 1: Test migration with first 5 rows of each table
+print("\n" + "="*70, flush=True)
+print("STEP 1: TEST MIGRATION (First 5 rows of each table)", flush=True)
+print("="*70, flush=True)
+print("Migrating first 5 rows to verify everything works...\n", flush=True)
+
+test_results = {}
+test_success_count = 0
 for table in tables:
     try:
-        migrate_table(table)
-        success_count += 1
+        success, rows_migrated, total_rows = migrate_table(table, test_mode=True, limit_rows=5)
+        test_results[table] = {
+            'success': success,
+            'rows_migrated': rows_migrated,
+            'total_rows': total_rows
+        }
+        if success:
+            test_success_count += 1
+    except Exception as e:
+        print(f"❌ Failed to migrate {table}: {e}", flush=True)
+        test_results[table] = {
+            'success': False,
+            'rows_migrated': 0,
+            'total_rows': 0
+        }
+
+print(f"\n{'='*70}", flush=True)
+print(f"TEST MIGRATION RESULTS", flush=True)
+print(f"{'='*70}", flush=True)
+print(f"Successfully tested: {test_success_count}/{len(tables)} tables", flush=True)
+
+# Check if all test migrations succeeded
+all_tests_passed = all(result['success'] for result in test_results.values())
+
+if not all_tests_passed:
+    print("\n❌ Some test migrations failed. Please fix the errors above before proceeding.", flush=True)
+    print("The test data has been migrated. You may need to clear it manually if you want to retry.", flush=True)
+    sys.exit(1)
+
+print("\n✓ All test migrations succeeded!", flush=True)
+print("Proceeding with full migration...\n", flush=True)
+
+# STEP 2: Clear all data (including test data) and migrate full dataset
+print("\n" + "="*70, flush=True)
+print("STEP 2: CLEARING ALL DATA (including test data)", flush=True)
+print("="*70, flush=True)
+
+# Clear all tables again (including the test data we just inserted)
+cleared_count = 0
+for pg_table in pg_tables:
+    try:
+        # Rollback any previous failed transaction
+        try:
+            pg_conn.rollback()
+        except:
+            pass
+        
+        # First try to get row count
+        pg_cursor.execute(f'SELECT COUNT(*) FROM "{pg_table}"')
+        count_before = pg_cursor.fetchone()[0]
+        
+        if count_before > 0:
+            # Use TRUNCATE with CASCADE to handle foreign keys
+            pg_cursor.execute(f'TRUNCATE TABLE "{pg_table}" RESTART IDENTITY CASCADE')
+            pg_conn.commit()
+            
+            # Verify it was cleared
+            pg_cursor.execute(f'SELECT COUNT(*) FROM "{pg_table}"')
+            count_after = pg_cursor.fetchone()[0]
+            
+            cleared_count += 1
+            print(f"  ✓ Cleared table: {pg_table} ({count_before} rows)", flush=True)
+        else:
+            cleared_count += 1
+            print(f"  ✓ Table already empty: {pg_table}", flush=True)
+    except Exception as e:
+        # Rollback the failed transaction
+        try:
+            pg_conn.rollback()
+        except:
+            pass
+        
+        # If TRUNCATE fails, try DELETE
+        try:
+            pg_cursor.execute(f'SELECT COUNT(*) FROM "{pg_table}"')
+            count_before = pg_cursor.fetchone()[0]
+            
+            if count_before > 0:
+                pg_cursor.execute(f'DELETE FROM "{pg_table}"')
+                # Reset sequence if it exists
+                try:
+                    pg_cursor.execute(f'ALTER SEQUENCE "{pg_table}_id_seq" RESTART WITH 1')
+                except:
+                    # Try alternative sequence name
+                    try:
+                        pg_cursor.execute(f'SELECT setval(pg_get_serial_sequence(\'"{pg_table}"\', \'id\'), 1, false)')
+                    except:
+                        pass  # No sequence or different name
+                pg_conn.commit()
+                cleared_count += 1
+                print(f"  ✓ Cleared table (using DELETE): {pg_table} ({count_before} rows)", flush=True)
+            else:
+                cleared_count += 1
+                print(f"  ✓ Table already empty: {pg_table}", flush=True)
+        except Exception as e2:
+            # Rollback again
+            try:
+                pg_conn.rollback()
+            except:
+                pass
+            print(f"  ⚠️  Could not clear table {pg_table}: {e2}", flush=True)
+
+print(f"\n✓ Cleared {cleared_count}/{len(pg_tables)} PostgreSQL tables", flush=True)
+print("="*70 + "\n", flush=True)
+
+# STEP 3: Full migration
+print("\n" + "="*70, flush=True)
+print("STEP 3: FULL MIGRATION (All data)", flush=True)
+print("="*70, flush=True)
+print("Migrating all data from SQLite to PostgreSQL...\n", flush=True)
+
+success_count = 0
+total_rows_migrated = 0
+for table in tables:
+    try:
+        success, rows_migrated, total_rows = migrate_table(table, test_mode=False)
+        if success:
+            success_count += 1
+            total_rows_migrated += rows_migrated
     except Exception as e:
         print(f"❌ Failed to migrate {table}: {e}", flush=True)
 
@@ -416,6 +558,7 @@ print(f"\n{'='*70}", flush=True)
 print(f"MIGRATION COMPLETE", flush=True)
 print(f"{'='*70}", flush=True)
 print(f"Successfully migrated {success_count}/{len(tables)} tables", flush=True)
+print(f"Total rows migrated: {total_rows_migrated}", flush=True)
 
 # Close connections
 sqlite_conn.close()
