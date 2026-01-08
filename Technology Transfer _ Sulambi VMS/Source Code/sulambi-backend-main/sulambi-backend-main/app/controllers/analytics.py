@@ -589,10 +589,11 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             })
             
             # Track individual volunteer stats for at-risk calculation
-            from ..database.connection import quote_identifier
+            from ..database.connection import quote_identifier, convert_boolean_condition, convert_placeholders
             internal_events_table = quote_identifier('internalEvents')
             external_events_table = quote_identifier('externalEvents')
-            from ..database.connection import convert_boolean_condition, convert_placeholders
+            requirements_table = quote_identifier('requirements')
+            evaluation_table = quote_identifier('evaluation')
             volunteer_query = f"""
                 SELECT
                        COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname) as volunteerKey,
