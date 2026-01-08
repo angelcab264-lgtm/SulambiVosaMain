@@ -61,7 +61,8 @@ try:
     # Columns that need to be changed from INTEGER to BIGINT
     tables_to_fix = {
         'internalEvents': ['durationStart', 'durationEnd', 'evaluationSendTime'],
-        'externalEvents': ['durationStart', 'durationEnd', 'evaluationSendTime']
+        'externalEvents': ['durationStart', 'durationEnd', 'evaluationSendTime'],
+        'volunteerParticipationHistory': ['firstEventDate']
     }
     
     for table_name, columns in tables_to_fix.items():
