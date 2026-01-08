@@ -395,6 +395,28 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                                     # Value exceeds INTEGER range
                                     # Check if this looks like a timestamp (milliseconds)
                                     if val > 1e12:  # Likely a timestamp in milliseconds
+                                        # This should be BIGINT, but column is detected as INTEGER
+                                        # Double-check the actual column type - might be a case sensitivity issue
+                                        print(f"      Debug: Column '{col_name}' (lowercase: '{col_name_lower}') detected as {pg_col_type}", flush=True)
+                                        print(f"      Debug: Available columns: {list(pg_columns.keys())[:5]}...", flush=True)
+                                        # Try to get the actual column type directly
+                                        try:
+                                            pg_cursor.execute("""
+                                                SELECT data_type 
+                                                FROM information_schema.columns 
+                                                WHERE LOWER(table_name) = LOWER(%s) 
+                                                AND LOWER(column_name) = LOWER(%s)
+                                            """, (actual_table_name, col_name))
+                                            actual_type_result = pg_cursor.fetchone()
+                                            if actual_type_result:
+                                                actual_type = actual_type_result[0].upper()
+                                                print(f"      Debug: Actual column type from database: {actual_type}", flush=True)
+                                                if actual_type == 'BIGINT':
+                                                    # Column is actually BIGINT, use it
+                                                    values.append(val)
+                                                    continue
+                                        except:
+                                            pass
                                         # This should be BIGINT, but column is INTEGER
                                         # We cannot insert this value - it will fail
                                         # Skip this row with a clear error message
