@@ -4,6 +4,8 @@ import TextSubHeader from "../../components/Headers/TextSubHeader";
 import DataTable from "../../components/Tables/DataTable";
 import PageLayout from "../PageLayout";
 import RemoveRedEyeIcon from "@mui/icons-material/RemoveRedEye";
+import { Box, CircularProgress, Typography } from "@mui/material";
+import FlexBox from "../../components/FlexBox";
 
 import { getAllReports, deleteReport } from "../../api/reports";
 import { ExternalReportType, InternalReportType } from "../../interface/types";
@@ -24,6 +26,7 @@ const ReportPage = () => {
   const [reportData, setReportData] = useState<any[]>([]);
   const [searchReport, setSearchReport] = useState("");
   const [forceRefresh, setForceRefresh] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [textPos, setTextPos] = useState<"left" | "justify">("left");
 
   const [openUpdateSignatories, setOpenUpdateSignatories] = useState(false);
@@ -110,6 +113,7 @@ const ReportPage = () => {
 
   const refreshReportList = async () => {
     try {
+      setLoading(true);
       console.log("Refreshing report list...");
       const response = await getAllReports();
       const externalReport: ExternalReportType[] = response.data.external;
@@ -188,6 +192,8 @@ const ReportPage = () => {
     } catch (error) {
       console.error("Error refreshing report list:", error);
       showSnackbarMessage("Error loading reports", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -257,19 +263,37 @@ const ReportPage = () => {
       <PageLayout page="report">
         <TextHeader>REPORTS</TextHeader>
         <TextSubHeader>Manage and Submit your reports</TextSubHeader>
-        <DataTable
-          title="Reports Table"
-          fields={[
-            "Event Title",
-            "Event Start Date",
-            "Event End Date",
-            "Action",
-          ]}
-          data={reportData}
-          onSearch={(key) => {
-            setSearchReport(key);
-          }}
-        />
+        {loading ? (
+          <FlexBox
+            flexDirection="column"
+            alignItems="center"
+            justifyContent="center"
+            minHeight="60vh"
+            gap={2}
+          >
+            <CircularProgress size={60} />
+            <Typography variant="h6" color="text.secondary">
+              Loading Reports...
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Please wait while we fetch the report data
+            </Typography>
+          </FlexBox>
+        ) : (
+          <DataTable
+            title="Reports Table"
+            fields={[
+              "Event Title",
+              "Event Start Date",
+              "Event End Date",
+              "Action",
+            ]}
+            data={reportData}
+            onSearch={(key) => {
+              setSearchReport(key);
+            }}
+          />
+        )}
       </PageLayout>
     </>
   );

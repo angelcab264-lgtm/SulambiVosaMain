@@ -25,6 +25,7 @@ const AccountsPage: React.FC = () => {
 
   const [adminAccs, setAdminAccs] = useState([]);
   const [officerAccs, setOfficerAccs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [openAccForm, setOpenAccForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -33,11 +34,17 @@ const AccountsPage: React.FC = () => {
   const [forceRefresh, setForceRefresh] = useState(0);
 
   useEffect(() => {
-    getAllAdminAccounts().then((response) => {
-      setAdminAccs(response.data.data ?? []);
-    });
-    getAllOfficerAccounts().then((response) => {
-      setOfficerAccs(response.data.data ?? []);
+    setLoading(true);
+    Promise.all([
+      getAllAdminAccounts(),
+      getAllOfficerAccounts()
+    ]).then(([adminResponse, officerResponse]) => {
+      setAdminAccs(adminResponse.data.data ?? []);
+      setOfficerAccs(officerResponse.data.data ?? []);
+    }).catch((err) => {
+      console.error("Error loading accounts:", err);
+    }).finally(() => {
+      setLoading(false);
     });
   }, [forceRefresh]);
 
@@ -134,7 +141,24 @@ const AccountsPage: React.FC = () => {
         <TextSubHeader gutterBottom>
           Add and manage Admin & Officer accounts
         </TextSubHeader>
-        <FlexBox width="100%" flexDirection="row" gap="20px">
+        {loading ? (
+          <FlexBox
+            flexDirection="column"
+            alignItems="center"
+            justifyContent="center"
+            minHeight="60vh"
+            gap={2}
+          >
+            <CircularProgress size={60} />
+            <Typography variant="h6" color="text.secondary">
+              Loading Accounts...
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Please wait while we fetch the account data
+            </Typography>
+          </FlexBox>
+        ) : (
+          <FlexBox width="100%" flexDirection="row" gap="20px">
           <FlexBox sx={commonSx}>
             <TextHeader gutterBottom>Admin Accounts</TextHeader>
             <FlexBox>
@@ -227,6 +251,7 @@ const AccountsPage: React.FC = () => {
             </FlexBox>
           </FlexBox>
         </FlexBox>
+        )}
       </PageLayout>
     </>
   );

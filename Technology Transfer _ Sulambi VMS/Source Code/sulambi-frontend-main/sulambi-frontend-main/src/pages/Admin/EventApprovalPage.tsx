@@ -4,6 +4,8 @@ import TextSubHeader from "../../components/Headers/TextSubHeader";
 import ConfirmModal from "../../components/Modal/ConfirmModal";
 import DataTable from "../../components/Tables/DataTable";
 import PageLayout from "../PageLayout";
+import { Box, CircularProgress, Typography } from "@mui/material";
+import FlexBox from "../../components/FlexBox";
 
 import FeedbackIcon from "@mui/icons-material/Feedback";
 import RemoveRedEyeIcon from "@mui/icons-material/RemoveRedEye";
@@ -82,10 +84,12 @@ const EventApproval = () => {
 
   const [showEvaluationList, setShowEvaluationList] = useState(false);
   const [showEventAnalysis, setShowEventAnalysis] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async function () {
       try {
+        setLoading(true);
         const response = await getAllEvents();
         const eventData: (
           | ExternalEventProposalType
@@ -214,6 +218,8 @@ const EventApproval = () => {
         );
       } catch (err) {
         console.log(err);
+      } finally {
+        setLoading(false);
       }
     })();
   }, [refreshTable, searchFilter, hideReportedEvents, searchVal]);
@@ -412,20 +418,38 @@ const EventApproval = () => {
       <PageLayout page="event-approval">
         <TextHeader>EVENT APPROVAL</TextHeader>
         <TextSubHeader>View and Manage Proposed events</TextSubHeader>
-        <DataTable
-          title="Event Approval Table"
-          fields={[
-            "Officer Username",
-            "Event Name",
-            "Type",
-            "Status",
-            "Action",
-          ]}
-          componentOnLeft={[CustomLeftComponents]}
-          componentBeforeSearch={CustomComponents}
-          data={tableData}
-          onSearch={(key) => setSearchVal(key.toLowerCase())}
-        />
+        {loading ? (
+          <FlexBox
+            flexDirection="column"
+            alignItems="center"
+            justifyContent="center"
+            minHeight="60vh"
+            gap={2}
+          >
+            <CircularProgress size={60} />
+            <Typography variant="h6" color="text.secondary">
+              Loading Events...
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Please wait while we fetch the event data
+            </Typography>
+          </FlexBox>
+        ) : (
+          <DataTable
+            title="Event Approval Table"
+            fields={[
+              "Officer Username",
+              "Event Name",
+              "Type",
+              "Status",
+              "Action",
+            ]}
+            componentOnLeft={[CustomLeftComponents]}
+            componentBeforeSearch={CustomComponents}
+            data={tableData}
+            onSearch={(key) => setSearchVal(key.toLowerCase())}
+          />
+        )}
       </PageLayout>
     </>
   );

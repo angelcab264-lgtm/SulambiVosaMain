@@ -46,24 +46,98 @@ def getAll():
       externalEvents = [event for event in externalEvents if event.get("status") == "accepted" and event.get("durationEnd", 0) - timeNow > 0]
       internalEvents = [event for event in internalEvents if event.get("status") == "accepted" and event.get("durationEnd", 0) - timeNow > 0]
 
-    # external events formatting
+    # Batch fetch all related data to avoid N+1 queries
+    # Collect all unique IDs
+    all_created_by_ids = set()
+    all_signatory_ids = set()
+    all_external_event_ids = []
+    all_internal_event_ids = []
+    
+    for event in externalEvents:
+      if event.get("createdBy"):
+        all_created_by_ids.add(event["createdBy"])
+      if event.get("signatoriesId"):
+        all_signatory_ids.add(event["signatoriesId"])
+      if event.get("id"):
+        all_external_event_ids.append(event["id"])
+    
+    for event in internalEvents:
+      if event.get("createdBy"):
+        all_created_by_ids.add(event["createdBy"])
+      if event.get("signatoriesId"):
+        all_signatory_ids.add(event["signatoriesId"])
+      if event.get("id"):
+        all_internal_event_ids.append(event["id"])
+    
+    # Batch fetch accounts
+    accounts_map = {}
+    if all_created_by_ids:
+      for account_id in all_created_by_ids:
+        try:
+          account = AccountDb.get(account_id)
+          if account:
+            accounts_map[account_id] = account
+        except Exception as e:
+          print(f"Error fetching account {account_id}: {e}")
+    
+    # Batch fetch signatories
+    signatories_map = {}
+    if all_signatory_ids:
+      for signatory_id in all_signatory_ids:
+        try:
+          signatory = SignatoriesDb.get(signatory_id)
+          if signatory:
+            signatories_map[signatory_id] = signatory
+        except Exception as e:
+          print(f"Error fetching signatory {signatory_id}: {e}")
+    
+    # Batch check for reports
+    external_reports_map = {}
+    if all_external_event_ids:
+      for event_id in all_external_event_ids:
+        try:
+          reports = ExternalReportDb.getAndSearch(["eventId"], [event_id])
+          external_reports_map[event_id] = len(reports) > 0
+        except Exception as e:
+          print(f"Error checking external report for event {event_id}: {e}")
+          external_reports_map[event_id] = False
+    
+    internal_reports_map = {}
+    if all_internal_event_ids:
+      for event_id in all_internal_event_ids:
+        try:
+          reports = InternalReportDb.getAndSearch(["eventId"], [event_id])
+          internal_reports_map[event_id] = len(reports) > 0
+        except Exception as e:
+          print(f"Error checking internal report for event {event_id}: {e}")
+          internal_reports_map[event_id] = False
+    
+    # external events formatting using cached data
     for i in range(len(externalEvents)):
       try:
-        externalEvents[i]["createdBy"] = AccountDb.get(externalEvents[i]["createdBy"])
-        externalEvents[i]["hasReport"] = len(ExternalReportDb.getAndSearch(["eventId"], [externalEvents[i]["id"]])) > 0
+        event_id = externalEvents[i].get("id")
+        created_by_id = externalEvents[i].get("createdBy")
+        signatory_id = externalEvents[i].get("signatoriesId")
+        
+        externalEvents[i]["createdBy"] = accounts_map.get(created_by_id) if created_by_id else None
+        externalEvents[i]["hasReport"] = external_reports_map.get(event_id, False)
         externalEvents[i]["eventTypeIndicator"] = "external"
-        externalEvents[i]["signatoriesId"] = SignatoriesDb.get(externalEvents[i]["signatoriesId"])
+        externalEvents[i]["signatoriesId"] = signatories_map.get(signatory_id) if signatory_id else None
       except Exception as e:
         print(f"Error formatting external event {externalEvents[i].get('id', 'unknown')}: {e}")
         # Continue with next event
 
-    # internal events formatting
+    # internal events formatting using cached data
     for i in range(len(internalEvents)):
       try:
-        internalEvents[i]["createdBy"] = AccountDb.get(internalEvents[i]["createdBy"])
-        internalEvents[i]["hasReport"] = len(InternalReportDb.getAndSearch(["eventId"], [internalEvents[i]["id"]])) > 0
+        event_id = internalEvents[i].get("id")
+        created_by_id = internalEvents[i].get("createdBy")
+        signatory_id = internalEvents[i].get("signatoriesId")
+        
+        internalEvents[i]["createdBy"] = accounts_map.get(created_by_id) if created_by_id else None
+        internalEvents[i]["hasReport"] = internal_reports_map.get(event_id, False)
         internalEvents[i]["eventTypeIndicator"] = "internal"
-        internalEvents[i]["signatoriesId"] = SignatoriesDb.get(internalEvents[i]["signatoriesId"])
+        internalEvents[i]["signatoriesId"] = signatories_map.get(signatory_id) if signatory_id else None
       except Exception as e:
         print(f"Error formatting internal event {internalEvents[i].get('id', 'unknown')}: {e}")
         # Continue with next event
