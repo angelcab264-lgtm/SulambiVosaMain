@@ -44,6 +44,20 @@ try:
     pg_cursor = pg_conn.cursor()
     print("✓ Connected to PostgreSQL database\n")
     
+    # List all tables to help debug
+    pg_cursor.execute("""
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_type = 'BASE TABLE'
+        ORDER BY table_name
+    """)
+    all_tables = [row[0] for row in pg_cursor.fetchall()]
+    print(f"Found {len(all_tables)} tables in database:")
+    for tbl in all_tables:
+        print(f"  - {tbl}")
+    print()
+    
     # Columns that need to be changed from INTEGER to BIGINT
     tables_to_fix = {
         'internalEvents': ['durationStart', 'durationEnd', 'evaluationSendTime'],
