@@ -130,10 +130,23 @@ def getVolunteerDropoutAnalytics(year=None):
         vph_table = quote_identifier('volunteerParticipationHistory')
         
         # Check if volunteerParticipationHistory table exists
-        cursor.execute("""
-            SELECT name FROM sqlite_master 
-            WHERE type='table' AND name='volunteerParticipationHistory'
-        """)
+        # Use database-agnostic query
+        from ..database.connection import DATABASE_URL
+        is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+        
+        if is_postgresql:
+            # PostgreSQL: use information_schema
+            cursor.execute("""
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'volunteerParticipationHistory'
+            """)
+        else:
+            # SQLite: use sqlite_master
+            cursor.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='volunteerParticipationHistory'
+            """)
         table_exists = cursor.fetchone()
         
         # Always ensure we're reading from membership table
