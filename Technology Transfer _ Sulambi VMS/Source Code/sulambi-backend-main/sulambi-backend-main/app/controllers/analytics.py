@@ -175,8 +175,9 @@ def getVolunteerDropoutAnalytics(year=None):
         
         # Get semester data from participation history table
         try:
+            from ..database.connection import convert_placeholders
             if year:
-                cursor.execute(f"""
+                query = f"""
                     SELECT semester, 
                            COUNT(DISTINCT volunteerEmail) as total_volunteers,
                            SUM(eventsJoined) as total_joined,
@@ -187,7 +188,9 @@ def getVolunteerDropoutAnalytics(year=None):
                     WHERE semesterYear = ?
                     GROUP BY semester
                     ORDER BY semester
-                """, (int(year),))
+                """
+                query = convert_placeholders(query)
+                cursor.execute(query, (int(year),))
             else:
                 cursor.execute(f"""
                     SELECT semester, 
@@ -742,13 +745,16 @@ def getSatisfactionAnalytics(year=None):
             conn, cursor = cursorInstance()
             from ..database.connection import quote_identifier
             semester_satisfaction_table = quote_identifier('semester_satisfaction')
+            from ..database.connection import convert_placeholders
             if year:
-                cursor.execute(f"""
+                query = f"""
                     SELECT year, semester, overall, volunteers, beneficiaries, topIssues
                     FROM {semester_satisfaction_table}
                     WHERE year=?
                     ORDER BY semester ASC
-                """, (int(year),))
+                """
+                query = convert_placeholders(query)
+                cursor.execute(query, (int(year),))
             else:
                 cursor.execute(f"""
                     SELECT year, semester, overall, volunteers, beneficiaries, topIssues
@@ -1001,23 +1007,28 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         satisfaction_surveys_table = quote_identifier('satisfactionSurveys')
         evaluation_table = quote_identifier('evaluation')
         requirements_table = quote_identifier('requirements')
-        cursor.execute(f"""
+        from ..database.connection import convert_placeholders
+        query1 = f"""
             SELECT id, respondentType, overallSatisfaction, volunteerRating, beneficiaryRating,
                    q13, q14, comment, recommendations, finalized
             FROM {satisfaction_surveys_table}
             WHERE eventId = ? AND eventType = ? AND finalized = 1
-        """, (eventId, eventType))
+        """
+        query1 = convert_placeholders(query1)
+        cursor.execute(query1, (eventId, eventType))
         
         survey_rows = cursor.fetchall()
         
         # Also get evaluations as fallback (for backward compatibility)
-        cursor.execute(f"""
+        query2 = f"""
             SELECT e.id, e.requirementId, e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
                    r.eventId, r.type
             FROM {evaluation_table} e
             INNER JOIN {requirements_table} r ON e.requirementId = r.id
             WHERE r.eventId = ? AND r.type = ? AND e.finalized = 1 AND e.criteria IS NOT NULL AND e.criteria != ''
-        """, (eventId, eventType))
+        """
+        query2 = convert_placeholders(query2)
+        cursor.execute(query2, (eventId, eventType))
         
         evaluation_rows = cursor.fetchall()
         conn.close()
@@ -1332,33 +1343,42 @@ def deleteDummyVolunteersData():
             # First, get requirement IDs for dummy emails
             if len(dummy_emails) > 0:
                 print(f"[DELETE DUMMY] Step 2: Finding requirements for {len(dummy_emails)} dummy emails...")
+                from ..database.connection import convert_placeholders
                 placeholders = ','.join(['?' for _ in dummy_emails])
-                cursor.execute(f"""
+                query = f"""
                     SELECT id FROM {requirements_table} 
                     WHERE LOWER(email) IN ({placeholders})
-                """, dummy_emails)
+                """
+                query = convert_placeholders(query)
+                cursor.execute(query, dummy_emails)
                 dummy_requirement_ids = [row[0] for row in cursor.fetchall()]
                 print(f"[DELETE DUMMY] Found {len(dummy_requirement_ids)} dummy requirements")
                 
                 if len(dummy_requirement_ids) > 0:
                     # Delete evaluations for dummy requirements
                     print(f"[DELETE DUMMY] Step 2a: Deleting evaluations for dummy requirements...")
+                    from ..database.connection import convert_placeholders
                     req_placeholders = ','.join(['?' for _ in dummy_requirement_ids])
-                    cursor.execute(f"""
+                    query = f"""
                         DELETE FROM {evaluation_table} 
                         WHERE requirementId IN ({req_placeholders})
-                    """, dummy_requirement_ids)
+                    """
+                    query = convert_placeholders(query)
+                    cursor.execute(query, dummy_requirement_ids)
                     deleted_counts['evaluations'] = cursor.rowcount
                     print(f"[DELETE DUMMY] Deleted {deleted_counts['evaluations']} evaluations")
             
             # Step 3: Delete requirements for dummy emails
             if len(dummy_emails) > 0:
                 print(f"[DELETE DUMMY] Step 3: Deleting requirements for dummy emails...")
+                from ..database.connection import convert_placeholders
                 placeholders = ','.join(['?' for _ in dummy_emails])
-                cursor.execute(f"""
+                query = f"""
                     DELETE FROM {requirements_table} 
                     WHERE LOWER(email) IN ({placeholders})
-                """, dummy_emails)
+                """
+                query = convert_placeholders(query)
+                cursor.execute(query, dummy_emails)
                 deleted_counts['requirements'] = cursor.rowcount
                 print(f"[DELETE DUMMY] Deleted {deleted_counts['requirements']} requirements")
             
