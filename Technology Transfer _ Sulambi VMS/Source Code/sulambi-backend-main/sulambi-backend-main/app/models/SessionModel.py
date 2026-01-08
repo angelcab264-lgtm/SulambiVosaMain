@@ -27,5 +27,6 @@ class SessionModel(Model):
   # clears all user token
   def clearUserToken(self, userId):
     conn, cursor = connection.cursorInstance()
-    cursor.execute(f"DELETE FROM {self.table} WHERE userid=?", (userId,))
+    table_name = self._get_table_name()
+    cursor.execute(f"DELETE FROM {table_name} WHERE userid=?", (userId,))
     conn.close()

@@ -20,8 +20,9 @@ class AccountModel(Model):
     print(f"[AUTH_MODEL] Authenticating user: {username}")
     conn, cursor = connection.cursorInstance()
     
-    query = f"SELECT {','.join([self.primaryKey] + self.columns)} FROM {self.table} WHERE username=? AND password=? AND active=?"
-    print(f"[AUTH_MODEL] Executing query: SELECT ... FROM {self.table} WHERE username=? AND password=? AND active=?")
+    table_name = self._get_table_name()
+    query = f"SELECT {','.join([self.primaryKey] + self.columns)} FROM {table_name} WHERE username=? AND password=? AND active=?"
+    print(f"[AUTH_MODEL] Executing query: SELECT ... FROM {table_name} WHERE username=? AND password=? AND active=?")
     print(f"[AUTH_MODEL] Query parameters: username={username}, password={'*' * len(password)}, active=True")
     
     cursor.execute(query, (username, password, True))
