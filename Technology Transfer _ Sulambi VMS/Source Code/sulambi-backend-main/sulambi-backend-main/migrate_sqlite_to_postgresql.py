@@ -105,9 +105,42 @@ print("✓ Connected to SQLite database", flush=True)
 
 # Get all tables from SQLite
 sqlite_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-tables = [row[0] for row in sqlite_cursor.fetchall()]
-print(f"\nFound {len(tables)} tables to migrate: {', '.join(tables)}", flush=True)
-print(f"Starting migration...\n", flush=True)
+sqlite_tables = [row[0] for row in sqlite_cursor.fetchall()]
+
+# Get all tables from PostgreSQL to create a case-sensitive mapping
+pg_cursor.execute("""
+    SELECT table_name 
+    FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_type = 'BASE TABLE'
+    ORDER BY table_name
+""")
+pg_tables_list = [row[0] for row in pg_cursor.fetchall()]
+
+# Create a mapping from SQLite table names (case-insensitive) to PostgreSQL table names (exact case)
+table_name_mapping = {}
+for sqlite_table in sqlite_tables:
+    # Find matching PostgreSQL table (case-insensitive)
+    for pg_table in pg_tables_list:
+        if sqlite_table.lower() == pg_table.lower():
+            table_name_mapping[sqlite_table] = pg_table
+            break
+    # If no match found, use SQLite name as-is
+    if sqlite_table not in table_name_mapping:
+        table_name_mapping[sqlite_table] = sqlite_table
+
+print(f"\nFound {len(sqlite_tables)} tables to migrate from SQLite", flush=True)
+print(f"Found {len(pg_tables_list)} tables in PostgreSQL", flush=True)
+print(f"\nTable name mapping (SQLite -> PostgreSQL):", flush=True)
+for sqlite_name, pg_name in sorted(table_name_mapping.items()):
+    if sqlite_name != pg_name:
+        print(f"  {sqlite_name} -> {pg_name} (case difference)", flush=True)
+    else:
+        print(f"  {sqlite_name} -> {pg_name}", flush=True)
+print(f"\nStarting migration...\n", flush=True)
+
+# Use SQLite table names for iteration, but map to PostgreSQL names when needed
+tables = sqlite_tables
 
 # Map SQLite types to PostgreSQL types
 type_mapping = {
@@ -165,25 +198,28 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
         # Get column names
         column_names = [col[1] for col in columns]
         
-        # Check if table exists (case-insensitive), if not, skip with message
-        pg_cursor.execute("""
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE LOWER(table_name) = LOWER(%s)
-            AND table_schema = 'public'
-        """, (table_name,))
-        result = pg_cursor.fetchone()
+        # Get the exact PostgreSQL table name from our mapping
+        actual_table_name = table_name_mapping.get(table_name, table_name)
         
-        if not result:
-            print(f"  ⚠️  Table '{table_name}' does not exist in PostgreSQL!", flush=True)
+        # Verify the table exists with this exact name
+        pg_cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = %s
+                AND table_schema = 'public'
+            )
+        """, (actual_table_name,))
+        table_exists = pg_cursor.fetchone()[0]
+        
+        if not table_exists:
+            print(f"  ⚠️  Table '{actual_table_name}' does not exist in PostgreSQL!", flush=True)
             print(f"  ⚠️  Please run 'python server.py --init' on Render first to create tables", flush=True)
             print(f"  ⚠️  Or create tables manually in PostgreSQL", flush=True)
             return (False, 0, total_rows_in_db)
         
-        # Use the actual table name from PostgreSQL (might have different case)
-        actual_table_name = result[0]
+        # Use the exact PostgreSQL table name (case-sensitive)
         if actual_table_name != table_name:
-            print(f"  → Using table name '{actual_table_name}' (case difference)", flush=True)
+            print(f"  → Using PostgreSQL table name '{actual_table_name}' (SQLite: '{table_name}')", flush=True)
         
         # Clear existing data for this specific table before migrating
         # First, ensure we're in a clean transaction state
