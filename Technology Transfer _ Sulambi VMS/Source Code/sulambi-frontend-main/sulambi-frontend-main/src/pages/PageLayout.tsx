@@ -16,7 +16,7 @@ import ChecklistRtlIcon from "@mui/icons-material/ChecklistRtl";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 
 import { ReactNode, useContext, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { logout } from "../api/auth";
 import { SnackbarContext } from "../contexts/SnackbarProvider";

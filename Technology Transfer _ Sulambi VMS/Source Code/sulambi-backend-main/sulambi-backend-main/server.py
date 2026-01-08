@@ -19,31 +19,20 @@ CORS(Server, resources={r"/*": {
   "supports_credentials": True
 }})
 
-# Add OPTIONS handler for preflight requests
-@Server.before_request
-def handle_preflight():
-    """Handle CORS preflight requests"""
-    if request.method == "OPTIONS":
-        from flask import jsonify
-        origin = request.headers.get('Origin', '*')
-        response = jsonify({})
-        response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
-        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        response.headers.add('Access-Control-Max-Age', '3600')
-        return response
-
 # Add after_request handler to ensure CORS headers are always present
+# Note: flask-cors already handles CORS, but we add this as a fallback for error responses
+# We check if headers already exist to avoid duplicates
 @Server.after_request
 def after_request(response):
-    """Ensure CORS headers are always present on all responses"""
-    origin = request.headers.get('Origin', '*')
-    response.headers.add('Access-Control-Allow-Origin', origin)
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
-    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    response.headers.add('Access-Control-Max-Age', '3600')
+    """Ensure CORS headers are always present on all responses (only if not already set by flask-cors)"""
+    # Only add headers if they don't already exist (to avoid duplicates)
+    if 'Access-Control-Allow-Origin' not in response.headers:
+        origin = request.headers.get('Origin', '*')
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Max-Age'] = '3600'
     return response
 
 @Server.route("/uploads/<path:path>")
