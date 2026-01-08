@@ -281,21 +281,33 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
         print(f"  Getting PostgreSQL column types...", flush=True)
         try:
             # Use actual table name (case-insensitive lookup)
+            # Get both column_name, data_type, and character_maximum_length for VARCHAR
             pg_cursor.execute("""
-                SELECT LOWER(column_name), data_type 
+                SELECT LOWER(column_name), data_type, character_maximum_length
                 FROM information_schema.columns 
                 WHERE LOWER(table_name) = LOWER(%s)
                 ORDER BY ordinal_position
             """, (actual_table_name,))
             results = pg_cursor.fetchall()
             
-            pg_columns = {row[0]: row[1] for row in results}
+            # Store both data_type and max_length for VARCHAR columns
+            pg_columns = {}
+            pg_column_lengths = {}
+            for row in results:
+                col_name_lower = row[0]
+                data_type = row[1]
+                max_length = row[2]
+                pg_columns[col_name_lower] = data_type
+                if max_length:
+                    pg_column_lengths[col_name_lower] = max_length
+            
             print(f"  ✓ Found {len(pg_columns)} PostgreSQL columns", flush=True)
         except Exception as e:
             print(f"  ⚠️  Error getting column types: {e}", flush=True)
             import traceback
             traceback.print_exc()
             pg_columns = {}
+            pg_column_lengths = {}
         
         # Also check for createdat/createdAt variations
         if 'createdat' in pg_columns or 'created_at' in pg_columns:
