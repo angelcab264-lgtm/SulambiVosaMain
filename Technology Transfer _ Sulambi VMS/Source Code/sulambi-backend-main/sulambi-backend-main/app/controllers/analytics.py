@@ -1398,10 +1398,13 @@ def deleteDummyVolunteersData():
             if len(dummy_member_ids) > 0:
                 print(f"[DELETE DUMMY] Step 6: Deleting {len(dummy_member_ids)} dummy memberships...")
                 member_placeholders = ','.join(['?' for _ in dummy_member_ids])
-                    cursor.execute(f"""
-                        DELETE FROM {membership_table} 
-                        WHERE id IN ({member_placeholders})
-                    """, dummy_member_ids)
+                query = f"""
+                    DELETE FROM {membership_table} 
+                    WHERE id IN ({member_placeholders})
+                """
+                from ..database.connection import convert_placeholders
+                query = convert_placeholders(query)
+                cursor.execute(query, dummy_member_ids)
                 deleted_counts['memberships'] = cursor.rowcount
                 print(f"[DELETE DUMMY] Deleted {deleted_counts['memberships']} memberships")
         else:
