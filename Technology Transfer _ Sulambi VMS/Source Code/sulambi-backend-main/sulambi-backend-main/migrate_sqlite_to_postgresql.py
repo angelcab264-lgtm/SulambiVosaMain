@@ -270,6 +270,16 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
         if 'createdat' in pg_columns or 'created_at' in pg_columns:
             print(f"  Found timestamp column: createdat/created_at", flush=True)
         
+        # Check for columns that might have integer overflow issues
+        timestamp_int_columns = ['durationstart', 'durationend', 'evaluationsendtime']
+        problematic_columns = []
+        for col in timestamp_int_columns:
+            if col in pg_columns and pg_columns[col].upper() == 'INTEGER':
+                problematic_columns.append(col)
+        if problematic_columns:
+            print(f"  ⚠️  Warning: Columns {problematic_columns} are INTEGER but may contain large timestamp values", flush=True)
+            print(f"      These should be BIGINT in PostgreSQL. Migration may fail for these columns.", flush=True)
+        
         print(f"  Starting data insertion...", flush=True)
         
         # Insert data - use savepoints for each row to handle errors gracefully
@@ -342,13 +352,10 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                                      # Value exceeds INTEGER range
                                      # Check if this looks like a timestamp (milliseconds)
                                      if val > 1e12:  # Likely a timestamp in milliseconds
-                                         # This should be BIGINT or TIMESTAMP, but column is INTEGER
-                                         # We'll try to insert NULL or skip, but first let's see if we can convert
-                                         # For now, we'll try inserting as-is and let PostgreSQL error
-                                         # The error message will be clearer
-                                         print(f"      Warning: Timestamp value {val} (milliseconds) exceeds INTEGER range for column {col_name}", flush=True)
-                                         print(f"      This column should be BIGINT or TIMESTAMP, but is INTEGER. Trying to insert as-is...", flush=True)
-                                         values.append(val)  # Will fail, but error will be clear
+                                         # This should be BIGINT, but column is INTEGER
+                                         # We cannot insert this value - it will fail
+                                         # Skip this row with a clear error message
+                                         raise ValueError(f"Column '{col_name}' is INTEGER but contains timestamp value {val} (milliseconds) which exceeds INTEGER range. This column should be BIGINT in PostgreSQL. Please update the table schema.")
                                      else:
                                          # Regular integer overflow
                                          print(f"      Warning: Integer value {val} exceeds INTEGER range for column {col_name}, setting to NULL", flush=True)
