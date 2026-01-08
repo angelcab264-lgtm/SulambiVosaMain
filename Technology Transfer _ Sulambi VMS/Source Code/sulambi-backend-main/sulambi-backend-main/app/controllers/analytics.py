@@ -610,8 +610,9 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
                 WHERE (r.accepted = 1 OR r.accepted IS NULL)
             """
-                volunteer_query = convert_boolean_condition(volunteer_query)
-                volunteer_params = []
+            from ..database.connection import convert_placeholders, convert_boolean_condition
+            volunteer_query = convert_boolean_condition(volunteer_query)
+            volunteer_params = []
             
             if event_ids_internal and event_ids_external:
                 volunteer_query += " AND ((r.type = 'internal' AND r.eventId IN ({}) OR (r.type = 'external' AND r.eventId IN ({}))))".format(
@@ -628,6 +629,8 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             
             volunteer_query += " GROUP BY volunteerKey"
             
+            from ..database.connection import convert_placeholders
+            volunteer_query = convert_placeholders(volunteer_query)
             cursor.execute(volunteer_query, volunteer_params)
             volunteer_rows = cursor.fetchall()
             
