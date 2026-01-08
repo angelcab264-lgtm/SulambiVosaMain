@@ -1,34 +1,82 @@
 import json
 import math
+import os
 from datetime import datetime
+from dotenv import load_dotenv
 
-from ..database.connection import cursorInstance, quote_identifier
+from ..database.connection import cursorInstance, quote_identifier, convert_placeholders
+
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
+is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
 
 
 def ensure_table(conn, cursor):
-  cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS semester_satisfaction (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      year INTEGER NOT NULL,
-      semester INTEGER NOT NULL CHECK (semester IN (1,2)),
-      overall REAL NOT NULL,
-      volunteers REAL NOT NULL,
-      beneficiaries REAL NOT NULL,
-      totalEvaluations INTEGER NOT NULL DEFAULT 0,
-      eventIds TEXT NOT NULL DEFAULT '[]',
-      topIssues TEXT NOT NULL DEFAULT '[]',
-      updatedAt TEXT NOT NULL,
-      UNIQUE(year, semester)
-    );
-    """
-  )
+  if is_postgresql:
+    # PostgreSQL syntax
+    cursor.execute(
+      """
+      CREATE TABLE IF NOT EXISTS "semester_satisfaction" (
+        id SERIAL PRIMARY KEY,
+        year INTEGER NOT NULL,
+        semester INTEGER NOT NULL CHECK (semester IN (1,2)),
+        overall REAL NOT NULL,
+        volunteers REAL NOT NULL,
+        beneficiaries REAL NOT NULL,
+        "totalEvaluations" INTEGER NOT NULL DEFAULT 0,
+        "eventIds" TEXT NOT NULL DEFAULT '[]',
+        "topIssues" TEXT NOT NULL DEFAULT '[]',
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(year, semester)
+      );
+      """
+    )
+  else:
+    # SQLite syntax
+    cursor.execute(
+      """
+      CREATE TABLE IF NOT EXISTS semester_satisfaction (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        year INTEGER NOT NULL,
+        semester INTEGER NOT NULL CHECK (semester IN (1,2)),
+        overall REAL NOT NULL,
+        volunteers REAL NOT NULL,
+        beneficiaries REAL NOT NULL,
+        totalEvaluations INTEGER NOT NULL DEFAULT 0,
+        eventIds TEXT NOT NULL DEFAULT '[]',
+        topIssues TEXT NOT NULL DEFAULT '[]',
+        updatedAt TEXT NOT NULL,
+        UNIQUE(year, semester)
+      );
+      """
+    )
   conn.commit()
 
 
 def upsert_row(cursor, year, sem, overall, vol, ben, total, event_ids, top_issues):
-  cursor.execute(
+  if is_postgresql:
+    # PostgreSQL syntax
+    table_name = quote_identifier('semester_satisfaction')
+    query = f"""
+    INSERT INTO {table_name}
+    (year, semester, overall, volunteers, beneficiaries, "totalEvaluations", "eventIds", "topIssues", "updatedAt")
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+    ON CONFLICT(year, semester) DO UPDATE SET
+      overall=EXCLUDED.overall,
+      volunteers=EXCLUDED.volunteers,
+      beneficiaries=EXCLUDED.beneficiaries,
+      "totalEvaluations"=EXCLUDED."totalEvaluations",
+      "eventIds"=EXCLUDED."eventIds",
+      "topIssues"=EXCLUDED."topIssues",
+      "updatedAt"=CURRENT_TIMESTAMP;
     """
+    cursor.execute(
+      query,
+      (year, sem, overall, vol, ben, total, json.dumps(event_ids), json.dumps(top_issues)),
+    )
+  else:
+    # SQLite syntax
+    query = """
     INSERT INTO semester_satisfaction
     (year, semester, overall, volunteers, beneficiaries, totalEvaluations, eventIds, topIssues, updatedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -40,9 +88,11 @@ def upsert_row(cursor, year, sem, overall, vol, ben, total, event_ids, top_issue
       eventIds=excluded.eventIds,
       topIssues=excluded.topIssues,
       updatedAt=datetime('now');
-    """,
-    (year, sem, overall, vol, ben, total, json.dumps(event_ids), json.dumps(top_issues)),
-  )
+    """
+    cursor.execute(
+      query,
+      (year, sem, overall, vol, ben, total, json.dumps(event_ids), json.dumps(top_issues)),
+    )
 
 
 def rebuild(year_filter: str | None = None):
@@ -52,21 +102,23 @@ def rebuild(year_filter: str | None = None):
   # Pull evaluations joined to events to get dates
   internal_events_table = quote_identifier('internalEvents')
   external_events_table = quote_identifier('externalEvents')
-  cursor.execute(
-    f"""
+  evaluation_table = quote_identifier('evaluation')
+  requirements_table = quote_identifier('requirements')
+  
+  query = f"""
     SELECT e.id, e.criteria, e.finalized, e.q13, e.q14, e.comment,
-           r.eventId, r.type,
+           r."eventId", r.type,
            CASE 
-             WHEN r.type = 'internal' THEN ei.durationStart
-             ELSE ee.durationStart
+             WHEN r.type = 'internal' THEN ei."durationStart"
+             ELSE ee."durationStart"
            END as eventDate
-    FROM evaluation e
-    INNER JOIN requirements r ON e.requirementId = r.id
-    LEFT JOIN {internal_events_table} ei ON r.eventId = ei.id AND r.type = 'internal'
-    LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
+    FROM {evaluation_table} e
+    INNER JOIN {requirements_table} r ON e."requirementId" = r.id
+    LEFT JOIN {internal_events_table} ei ON r."eventId" = ei.id AND r.type = 'internal'
+    LEFT JOIN {external_events_table} ee ON r."eventId" = ee.id AND r.type = 'external'
     WHERE e.finalized = 1 AND e.criteria IS NOT NULL AND e.criteria != ''
-    """
-  )
+  """
+  cursor.execute(query)
   rows = cursor.fetchall()
 
   by_sem = {}

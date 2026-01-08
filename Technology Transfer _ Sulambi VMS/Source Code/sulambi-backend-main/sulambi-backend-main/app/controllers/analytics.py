@@ -826,19 +826,22 @@ def getSatisfactionAnalytics(year=None):
         from ..database.connection import quote_identifier
         internal_events_table = quote_identifier('internalEvents')
         external_events_table = quote_identifier('externalEvents')
-        cursor.execute(f"""
-            SELECT e.id, e.requirementId, e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                   r.eventId, r.type,
+        evaluation_table = quote_identifier('evaluation')
+        requirements_table = quote_identifier('requirements')
+        query = f"""
+            SELECT e.id, e."requirementId", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
+                   r."eventId", r.type,
                    CASE 
-                       WHEN r.type = 'internal' THEN ei.durationStart
-                       ELSE ee.durationStart
+                       WHEN r.type = 'internal' THEN ei."durationStart"
+                       ELSE ee."durationStart"
                    END as eventDate
             FROM {evaluation_table} e
-            INNER JOIN {requirements_table} r ON e.requirementId = r.id
-            LEFT JOIN {internal_events_table} ei ON r.eventId = ei.id AND r.type = 'internal'
-            LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
+            INNER JOIN {requirements_table} r ON e."requirementId" = r.id
+            LEFT JOIN {internal_events_table} ei ON r."eventId" = ei.id AND r.type = 'internal'
+            LEFT JOIN {external_events_table} ee ON r."eventId" = ee.id AND r.type = 'external'
             WHERE e.finalized = 1 AND e.criteria IS NOT NULL AND e.criteria != ''
-        """)
+        """
+        cursor.execute(query)
         
         evaluation_rows = cursor.fetchall()
         conn.close()
