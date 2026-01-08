@@ -397,8 +397,10 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                                     if val > 1e12:  # Likely a timestamp in milliseconds
                                         # This should be BIGINT, but column is detected as INTEGER
                                         # Double-check the actual column type - might be a case sensitivity issue
-                                        print(f"      Debug: Column '{col_name}' (lowercase: '{col_name_lower}') detected as {pg_col_type}", flush=True)
-                                        print(f"      Debug: Available columns: {list(pg_columns.keys())[:5]}...", flush=True)
+                                        # Only debug once per column to avoid spam
+                                        if col_name_lower not in debugged_columns:
+                                            print(f"      Debug: Column '{col_name}' (lowercase: '{col_name_lower}') detected as {pg_col_type}", flush=True)
+                                            debugged_columns.add(col_name_lower)
                                         # Try to get the actual column type directly
                                         try:
                                             pg_cursor.execute("""
@@ -410,7 +412,13 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                                             actual_type_result = pg_cursor.fetchone()
                                             if actual_type_result:
                                                 actual_type = actual_type_result[0].upper()
-                                                print(f"      Debug: Actual column type from database: {actual_type}", flush=True)
+                                                if col_name_lower not in debugged_columns or actual_type == 'BIGINT':
+                                                    if actual_type == 'BIGINT' and col_name_lower in debugged_columns:
+                                                        # Only print once when we confirm it's BIGINT
+                                                        print(f"      Debug: Actual column type from database: {actual_type}", flush=True)
+                                                    elif col_name_lower not in debugged_columns:
+                                                        print(f"      Debug: Actual column type from database: {actual_type}", flush=True)
+                                                    debugged_columns.add(col_name_lower)
                                                 if actual_type == 'BIGINT':
                                                     # Column is actually BIGINT, use it
                                                     values.append(val)
