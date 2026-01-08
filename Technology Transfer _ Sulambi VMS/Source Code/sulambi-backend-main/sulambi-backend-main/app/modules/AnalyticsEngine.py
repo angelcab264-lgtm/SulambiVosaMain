@@ -109,7 +109,7 @@ class AnalyticsEngine:
         FROM {membership_table} m
         LEFT JOIN {requirements_table} r ON m.email = r.email
         LEFT JOIN {evaluation_table} e ON r.id = e."requirementId"
-        WHERE m.accepted = 1
+        WHERE m.accepted = true
         GROUP BY m.id
         """
         

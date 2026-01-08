@@ -26,6 +26,38 @@ def is_postgresql_connection(conn):
     except:
         return False
 
+def convert_boolean_value(value):
+    """Convert boolean value for database compatibility
+    PostgreSQL uses true/false, SQLite uses 1/0
+    """
+    if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
+        # PostgreSQL: convert 1/0 to true/false
+        if value == 1 or value == True:
+            return True
+        elif value == 0 or value == False:
+            return False
+        return value
+    else:
+        # SQLite: convert true/false to 1/0
+        if value == True:
+            return 1
+        elif value == False:
+            return 0
+        return value
+
+def convert_boolean_condition(condition):
+    """Convert boolean conditions in SQL queries
+    PostgreSQL: column = true/false
+    SQLite: column = 1/0
+    """
+    if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
+        # Replace = 1 with = true, = 0 with = false
+        condition = condition.replace(' = 1', ' = true')
+        condition = condition.replace(' = 0', ' = false')
+        condition = condition.replace('= 1', '= true')
+        condition = condition.replace('= 0', '= false')
+    return condition
+
 def cursorInstance():
   # Use PostgreSQL if DATABASE_URL is provided (production)
   if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):

@@ -170,10 +170,13 @@ def getVolunteerDropoutAnalytics(year=None):
         
         # Always ensure we're reading from membership table
         # Check if we have active members in membership table
-        cursor.execute(f"""
+        from ..database.connection import convert_boolean_condition
+        query = f"""
             SELECT COUNT(*) FROM {membership_table} 
             WHERE accepted = 1 AND active = 1
-        """)
+        """
+        query = convert_boolean_condition(query)
+        cursor.execute(query)
         member_count = cursor.fetchone()[0] or 0
         
         if member_count == 0:
@@ -264,7 +267,8 @@ def getVolunteerDropoutAnalytics(year=None):
         # First, get all active and accepted members from membership table
         # This ensures we're reading from the membership table as the source of truth
         try:
-            cursor.execute(f"""
+            from ..database.connection import convert_boolean_condition
+            query = f"""
                 SELECT 
                     m.email,
                     m.fullname,
@@ -277,7 +281,9 @@ def getVolunteerDropoutAnalytics(year=None):
                 LEFT JOIN {vph_table} vph ON m.email = vph.volunteerEmail
                 WHERE m.accepted = 1 AND m.active = 1
                 GROUP BY m.email, m.fullname
-            """)
+            """
+            query = convert_boolean_condition(query)
+            cursor.execute(query)
             
             volunteer_rows = cursor.fetchall()
         except Exception as query_error:
@@ -285,7 +291,8 @@ def getVolunteerDropoutAnalytics(year=None):
             # fall back to getting members without participation history
             print(f"[DROPOUT ANALYTICS] Query with JOIN failed: {query_error}")
             print(f"[DROPOUT ANALYTICS] Falling back to membership-only query")
-            cursor.execute(f"""
+            from ..database.connection import convert_boolean_condition
+            query = f"""
                 SELECT 
                     email,
                     fullname,
@@ -296,7 +303,9 @@ def getVolunteerDropoutAnalytics(year=None):
                     0 as semesters_active
                 FROM {membership_table}
                 WHERE accepted = 1 AND active = 1
-            """)
+            """
+            query = convert_boolean_condition(query)
+            cursor.execute(query)
             volunteer_rows = cursor.fetchall()
         
         # Calculate at-risk volunteers from participation history
@@ -574,7 +583,8 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             from ..database.connection import quote_identifier
             internal_events_table = quote_identifier('internalEvents')
             external_events_table = quote_identifier('externalEvents')
-            volunteer_query = f"""
+                from ..database.connection import convert_boolean_condition, convert_placeholders
+                volunteer_query = f"""
                 SELECT
                        COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname) as volunteerKey,
                        MAX(NULLIF(r.email, '')) as email,
@@ -591,7 +601,8 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
                 LEFT JOIN {external_events_table} ee ON r.eventId = ee.id AND r.type = 'external'
                 WHERE (r.accepted = 1 OR r.accepted IS NULL)
             """
-            volunteer_params = []
+                volunteer_query = convert_boolean_condition(volunteer_query)
+                volunteer_params = []
             
             if event_ids_internal and event_ids_external:
                 volunteer_query += " AND ((r.type = 'internal' AND r.eventId IN ({}) OR (r.type = 'external' AND r.eventId IN ({}))))".format(
