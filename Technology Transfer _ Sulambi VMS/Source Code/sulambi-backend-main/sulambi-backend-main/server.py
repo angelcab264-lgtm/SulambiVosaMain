@@ -1,4 +1,4 @@
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, request
 from flask_cors import CORS
 from app.blueprint import ApiBlueprint
 from dotenv import load_dotenv
@@ -18,6 +18,18 @@ CORS(Server, resources={r"/*": {
   "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   "supports_credentials": True
 }})
+
+# Add after_request handler to ensure CORS headers are always present
+@Server.after_request
+def after_request(response):
+    """Ensure CORS headers are always present on all responses"""
+    origin = request.headers.get('Origin', '*')
+    response.headers.add('Access-Control-Allow-Origin', origin)
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    response.headers.add('Access-Control-Max-Age', '3600')
+    return response
 
 @Server.route("/uploads/<path:path>")
 def staticFileHost(path):

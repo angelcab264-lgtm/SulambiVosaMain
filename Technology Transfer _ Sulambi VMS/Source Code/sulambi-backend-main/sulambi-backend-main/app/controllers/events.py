@@ -27,19 +27,24 @@ def getAll():
   try:
     # manual mapping of user details
     accountSessionInfo = g.get("accountSessionInfo")
+    if not accountSessionInfo:
+      return ({
+        "message": "Authentication required"
+      }, 401)
+    
     externalEvents = ExternalEventDb.getAll()
     internalEvents = InternalEventDb.getAll()
 
     combinedEvents = []
 
-    if (accountSessionInfo["accountType"] == "admin"):
-      externalEvents = [event for event in externalEvents if event["status"] != "editing"]
-      internalEvents = [event for event in internalEvents if event["status"] != "editing"]
+    if (accountSessionInfo.get("accountType") == "admin"):
+      externalEvents = [event for event in externalEvents if event.get("status") != "editing"]
+      internalEvents = [event for event in internalEvents if event.get("status") != "editing"]
 
-    if (accountSessionInfo["accountType"] == "member"):
+    if (accountSessionInfo.get("accountType") == "member"):
       timeNow = int(datetime.now().timestamp() * 1000)
-      externalEvents = [event for event in externalEvents if event["status"] == "accepted" and event["durationEnd"] - timeNow > 0]
-      internalEvents = [event for event in internalEvents if event["status"] == "accepted" and event["durationEnd"] - timeNow > 0]
+      externalEvents = [event for event in externalEvents if event.get("status") == "accepted" and event.get("durationEnd", 0) - timeNow > 0]
+      internalEvents = [event for event in internalEvents if event.get("status") == "accepted" and event.get("durationEnd", 0) - timeNow > 0]
 
     # external events formatting
     for i in range(len(externalEvents)):
