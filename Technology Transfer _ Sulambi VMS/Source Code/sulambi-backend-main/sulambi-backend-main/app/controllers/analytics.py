@@ -1413,10 +1413,13 @@ def deleteDummyVolunteersData():
                     
                     # Delete accounts
                     print(f"[DELETE DUMMY] Step 5a: Deleting dummy accounts...")
-                    cursor.execute(f"""
+                    from ..database.connection import convert_placeholders
+                    query = f"""
                         DELETE FROM accounts 
                         WHERE id IN ({account_placeholders})
-                    """, dummy_account_ids)
+                    """
+                    query = convert_placeholders(query)
+                    cursor.execute(query, dummy_account_ids)
                     deleted_counts['accounts'] = cursor.rowcount
                     print(f"[DELETE DUMMY] Deleted {deleted_counts['accounts']} accounts")
             
