@@ -151,12 +151,21 @@ class Model:
     columnQuery = ", ".join([self.primaryKey] + self.columns)
     table_name = self._get_table_name()
 
-    queryFormatter = [f"{col}=?" for col in columns]
-    queryFormatter = " OR ".join(queryFormatter)
+    # Build query with proper NULL handling
+    conditions = []
+    params = []
+    for col, val in zip(columns, values):
+      if val is None:
+        conditions.append(f"{col} IS NULL")
+      else:
+        conditions.append(f"{col}=?")
+        params.append(val)
+    
+    queryFormatter = " OR ".join(conditions)
     query = f"SELECT {columnQuery} FROM {table_name} WHERE {queryFormatter}"
     query = connection.convert_placeholders(query)
 
-    cursor.execute(query, values)
+    cursor.execute(query, params)
     dbResponse = cursor.fetchall()
 
     response = self.parseManyResponse(dbResponse, [self.primaryKey] + self.columns)

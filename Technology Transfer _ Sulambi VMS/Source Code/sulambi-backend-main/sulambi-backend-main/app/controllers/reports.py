@@ -52,9 +52,11 @@ def getAllReports():
   }
 
 def getReportCalculations(eventId: int, eventType: str):
+  from ..database.connection import convert_boolean_value
+  accepted_value = convert_boolean_value(1)
   registeredUsers = RequirementsDb.getAndSearch(
     ["eventId", "type", "accepted"],
-    [eventId, eventType, 1])
+    [eventId, eventType, accepted_value])
 
   # filter only the one who attended
   onlyAttendedUsers = []

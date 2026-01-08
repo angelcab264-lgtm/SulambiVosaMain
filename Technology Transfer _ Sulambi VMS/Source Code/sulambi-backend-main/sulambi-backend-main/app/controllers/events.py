@@ -106,12 +106,16 @@ def getOne(id: int, eventType: str):
       activities = []
       try:
         conn, cursor = connection.cursorInstance()
-        cursor.execute("""
+        from ..database.connection import quote_identifier, convert_placeholders
+        table_name = quote_identifier('activity_month_assignments')
+        query = f"""
           SELECT activity_name, month 
-          FROM activity_month_assignments 
-          WHERE eventId = ?
+          FROM {table_name}
+          WHERE "eventId" = ?
           ORDER BY activity_name, month
-        """, (id,))
+        """
+        query = convert_placeholders(query)
+        cursor.execute(query, (id,))
         
         assignments = cursor.fetchall()
         
