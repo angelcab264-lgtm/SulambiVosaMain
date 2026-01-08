@@ -592,8 +592,8 @@ def getVolunteerDropoutAnalyticsLegacy(year=None):
             from ..database.connection import quote_identifier
             internal_events_table = quote_identifier('internalEvents')
             external_events_table = quote_identifier('externalEvents')
-                from ..database.connection import convert_boolean_condition, convert_placeholders
-                volunteer_query = f"""
+            from ..database.connection import convert_boolean_condition, convert_placeholders
+            volunteer_query = f"""
                 SELECT
                        COALESCE(NULLIF(r.email, ''), NULLIF(r.srcode, ''), r.fullname) as volunteerKey,
                        MAX(NULLIF(r.email, '')) as email,
