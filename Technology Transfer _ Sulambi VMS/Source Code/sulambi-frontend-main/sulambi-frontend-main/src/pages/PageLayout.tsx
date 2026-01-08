@@ -21,6 +21,7 @@ import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { logout } from "../api/auth";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
 import QrCodeIcon from "@mui/icons-material/QrCode";
+import { getImagePath } from "../utils/imagePath";
 
 interface Props {
   page: string;
@@ -101,7 +102,7 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
           }}
         >
           <img
-            src="/images/logo.png"
+            src={getImagePath("/images/logo.png")}
             height="150px"
             width="150px"
             onClick={() => {

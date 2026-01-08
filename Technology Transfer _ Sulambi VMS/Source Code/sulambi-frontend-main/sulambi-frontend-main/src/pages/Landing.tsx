@@ -25,6 +25,7 @@ import NewsThumbnailCarousel from "../components/NewsThumbnailCarousel";
 import { useNavigate } from "react-router-dom";
 import { People, Assignment } from "@mui/icons-material";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
+import { getImagePath } from "../utils/imagePath";
 
 const Landing = () => {
   const { setFormData } = useContext(FormDataContext);
@@ -134,7 +135,7 @@ const Landing = () => {
         height="90vh"
         width="100%"
         sx={{
-          backgroundImage: "url('/images/landing-bg.png')",
+          backgroundImage: `url('${getImagePath('/images/landing-bg.png')}')`,
           backgroundRepeat: "no-repeat",
           backgroundSize: "cover",
         }}

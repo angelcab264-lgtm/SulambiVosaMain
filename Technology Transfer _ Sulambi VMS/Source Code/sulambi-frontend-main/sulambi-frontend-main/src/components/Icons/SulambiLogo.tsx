@@ -1,7 +1,9 @@
+import { getImagePath } from "../../utils/imagePath";
+
 const SulambiLogo = () => {
   return (
     <img
-      src="/images/logo.png"
+      src={getImagePath("/images/logo.png")}
       height="70px"
       width="80px"
       style={{

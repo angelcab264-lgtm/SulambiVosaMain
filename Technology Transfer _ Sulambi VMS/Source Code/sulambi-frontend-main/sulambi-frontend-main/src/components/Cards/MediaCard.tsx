@@ -9,6 +9,7 @@ import {
 import CustomButton from "../Buttons/CustomButton";
 import FlexBox from "../FlexBox";
 import { useMediaQuery } from "react-responsive";
+import { getImagePath } from "../../utils/imagePath";
 
 const MediaCard: React.FC<MediaCardProps> = ({
   cardTitle,
@@ -44,7 +45,7 @@ const MediaCard: React.FC<MediaCardProps> = ({
     >
       <CardMedia
         component="img"
-        image="/images/default-image.png"
+        image={getImagePath("/images/default-image.png")}
         title="default title"
         sx={{
           bgcolor: "black",

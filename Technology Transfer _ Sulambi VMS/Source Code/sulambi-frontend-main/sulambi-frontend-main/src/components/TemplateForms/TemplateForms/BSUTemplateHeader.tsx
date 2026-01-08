@@ -1,5 +1,6 @@
 import { BsuTemplateHeaderProps } from "../../../interface/props";
 import FlexBox from "../../FlexBox";
+import { getImagePath } from "../../../utils/imagePath";
 
 const BSUTemplateHeader: React.FC<BsuTemplateHeaderProps> = ({
   children,
@@ -54,7 +55,7 @@ const BSUTemplateHeader: React.FC<BsuTemplateHeaderProps> = ({
                 style={{ textAlign: "center" }}
                 className={romaize ? "fontSet" : ""}
               >
-                <img src="/images/bsu-logo.png" height="50px" width="55px" style={{ margin: 0, padding: 0 }} />
+                <img src={getImagePath("/images/bsu-logo.png")} height="50px" width="55px" style={{ margin: 0, padding: 0 }} />
               </td>
               <td width="35%" className={romaize ? "fontSet" : ""}>
                 {reference ?? "Reference No.: BatStateU-REC-ESO-02"}

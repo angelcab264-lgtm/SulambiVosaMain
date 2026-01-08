@@ -8,4 +8,10 @@ export default defineConfig({
     host: 'localhost',
     port: 5173,
   },
+  base: '/', // Ensure base path is root for static assets
+  build: {
+    assetsDir: 'assets',
+    // Ensure public assets are copied correctly
+    copyPublicDir: true,
+  },
 })

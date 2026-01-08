@@ -16,6 +16,7 @@ import { MembershipType, SessionResponse } from "../interface/types";
 import { useNavigate } from "react-router-dom";
 import { AccountDetailsContext } from "../contexts/AccountDetailsProvider";
 import { SnackbarContext } from "../contexts/SnackbarProvider";
+import { getImagePath } from "../utils/imagePath";
 
 interface LoginResponse {
   message: string;
@@ -168,7 +169,7 @@ const OfficerLogin = () => {
         minWidth: "300px"
       }}>
         <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <img src="/images/logo.png" height="70px" width="80px" style={{ borderRadius: "50%" }} />
+          <img src={getImagePath("/images/logo.png")} height="70px" width="80px" style={{ borderRadius: "50%" }} />
           <h2 style={{ color: "#475443", margin: "10px 0" }}>Sulambi Log In</h2>
         </div>
         
