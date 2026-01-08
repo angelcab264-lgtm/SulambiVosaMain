@@ -548,6 +548,27 @@ execute_sql("CREATE INDEX IF NOT EXISTS idx_semester ON volunteerParticipationHi
 execute_sql("CREATE INDEX IF NOT EXISTS idx_last_event_date ON volunteerParticipationHistory(lastEventDate)")
 DEBUG and print("Done")
 
+###########################
+#  SEMESTER SATISFACTION TABLE  #
+###########################
+DEBUG and print("[*] Initializing semester_satisfaction table...")
+execute_sql("""
+  CREATE TABLE IF NOT EXISTS semester_satisfaction(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL,
+    semester INTEGER NOT NULL,
+    overall REAL NOT NULL,
+    volunteers REAL NOT NULL,
+    beneficiaries REAL NOT NULL,
+    totalEvaluations INTEGER NOT NULL DEFAULT 0,
+    eventIds TEXT NOT NULL DEFAULT '[]',
+    topIssues TEXT NOT NULL DEFAULT '[]',
+    updatedAt TEXT NOT NULL,
+    UNIQUE(year, semester)
+  )
+""")
+DEBUG and print("Done")
+
 
 # Insert the initial account values here
 initialAccounts = [
