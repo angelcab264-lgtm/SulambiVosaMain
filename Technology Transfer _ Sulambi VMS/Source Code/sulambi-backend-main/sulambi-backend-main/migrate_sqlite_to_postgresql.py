@@ -165,20 +165,25 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
         # Get column names
         column_names = [col[1] for col in columns]
         
-        # Check if table exists, if not, skip with message
+        # Check if table exists (case-insensitive), if not, skip with message
         pg_cursor.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = %s
-            );
-        """, (table_name.lower(),))
-        table_exists = pg_cursor.fetchone()[0]
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE LOWER(table_name) = LOWER(%s)
+            AND table_schema = 'public'
+        """, (table_name,))
+        result = pg_cursor.fetchone()
         
-        if not table_exists:
+        if not result:
             print(f"  ⚠️  Table '{table_name}' does not exist in PostgreSQL!", flush=True)
             print(f"  ⚠️  Please run 'python server.py --init' on Render first to create tables", flush=True)
             print(f"  ⚠️  Or create tables manually in PostgreSQL", flush=True)
             return (False, 0, total_rows_in_db)
+        
+        # Use the actual table name from PostgreSQL (might have different case)
+        actual_table_name = result[0]
+        if actual_table_name != table_name:
+            print(f"  → Using table name '{actual_table_name}' (case difference)", flush=True)
         
         # Clear existing data for this specific table before migrating
         # First, ensure we're in a clean transaction state
@@ -188,21 +193,21 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
             pass
         
         try:
-            # First get row count
-            pg_cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+            # First get row count (use actual table name)
+            pg_cursor.execute(f'SELECT COUNT(*) FROM "{actual_table_name}"')
             count_before = pg_cursor.fetchone()[0]
             
             if count_before > 0:
                 # Use TRUNCATE with RESTART IDENTITY to reset sequences
-                pg_cursor.execute(f'TRUNCATE TABLE "{table_name}" RESTART IDENTITY CASCADE')
+                pg_cursor.execute(f'TRUNCATE TABLE "{actual_table_name}" RESTART IDENTITY CASCADE')
                 pg_conn.commit()
                 
                 # Verify it was cleared
-                pg_cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+                pg_cursor.execute(f'SELECT COUNT(*) FROM "{actual_table_name}"')
                 count_after = pg_cursor.fetchone()[0]
-                print(f"  ✓ Cleared {count_before} rows from {table_name}", flush=True)
+                print(f"  ✓ Cleared {count_before} rows from {actual_table_name}", flush=True)
             else:
-                print(f"  ✓ Table {table_name} is already empty", flush=True)
+                print(f"  ✓ Table {actual_table_name} is already empty", flush=True)
         except Exception as e:
             # Rollback any failed transaction
             try:
@@ -212,51 +217,41 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
             
             # If TRUNCATE fails, try DELETE and reset sequence manually
             try:
-                pg_cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+                pg_cursor.execute(f'SELECT COUNT(*) FROM "{actual_table_name}"')
                 count_before = pg_cursor.fetchone()[0]
                 
                 if count_before > 0:
-                    pg_cursor.execute(f'DELETE FROM "{table_name}"')
+                    pg_cursor.execute(f'DELETE FROM "{actual_table_name}"')
                     # Reset sequence if table has SERIAL id column
                     try:
-                        pg_cursor.execute(f'ALTER SEQUENCE "{table_name}_id_seq" RESTART WITH 1')
+                        pg_cursor.execute(f'ALTER SEQUENCE "{actual_table_name}_id_seq" RESTART WITH 1')
                     except:
                         pass  # Sequence might not exist or have different name
                     pg_conn.commit()
-                    print(f"  ✓ Cleared {count_before} rows from {table_name} (using DELETE)", flush=True)
+                    print(f"  ✓ Cleared {count_before} rows from {actual_table_name} (using DELETE)", flush=True)
                 else:
-                    print(f"  ✓ Table {table_name} is already empty", flush=True)
+                    print(f"  ✓ Table {actual_table_name} is already empty", flush=True)
             except Exception as e2:
                 # Rollback again
                 try:
                     pg_conn.rollback()
                 except:
                     pass
-                print(f"  ⚠️  Could not clear table {table_name}: {e2}", flush=True)
+                print(f"  ⚠️  Could not clear table {actual_table_name}: {e2}", flush=True)
                 # Continue anyway - might have constraints we can't handle
         
         # Get PostgreSQL column types to handle type conversion
         # Note: PostgreSQL column names are case-insensitive unless quoted
         print(f"  Getting PostgreSQL column types...", flush=True)
         try:
-            # Try with exact table name first (case-sensitive)
+            # Use actual table name (case-insensitive lookup)
             pg_cursor.execute("""
                 SELECT LOWER(column_name), data_type 
                 FROM information_schema.columns 
-                WHERE table_name = %s
+                WHERE LOWER(table_name) = LOWER(%s)
                 ORDER BY ordinal_position
-            """, (table_name,))
+            """, (actual_table_name,))
             results = pg_cursor.fetchall()
-            
-            # If no results, try case-insensitive
-            if not results:
-                pg_cursor.execute("""
-                    SELECT LOWER(column_name), data_type 
-                    FROM information_schema.columns 
-                    WHERE LOWER(table_name) = LOWER(%s)
-                    ORDER BY ordinal_position
-                """, (table_name,))
-                results = pg_cursor.fetchall()
             
             pg_columns = {row[0]: row[1] for row in results}
             print(f"  ✓ Found {len(pg_columns)} PostgreSQL columns", flush=True)
@@ -372,7 +367,7 @@ def migrate_table(table_name, test_mode=False, limit_rows=None):
                             values.append(val)
                 
                 pg_cursor.execute(
-                    f"INSERT INTO {table_name} ({column_names_str}) VALUES ({placeholders})",
+                    f'INSERT INTO "{actual_table_name}" ({column_names_str}) VALUES ({placeholders})',
                     values
                 )
                 pg_cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
