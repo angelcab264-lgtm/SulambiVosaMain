@@ -24,7 +24,10 @@ def convert_sql(sql):
     # Convert timestamp columns that store milliseconds to BIGINT (they exceed INTEGER range)
     # These columns store Unix timestamps in milliseconds
     import re
-    timestamp_columns = ['durationStart', 'durationEnd', 'evaluationSendTime', 'firstEventDate']
+    timestamp_columns = [
+        'durationStart', 'durationEnd', 'evaluationSendTime',  # Events tables
+        'firstEventDate', 'lastEventDate', 'calculatedAt', 'lastUpdated'  # volunteerParticipationHistory
+    ]
     for col in timestamp_columns:
         # Match: column_name INTEGER (with optional NOT NULL, etc.)
         pattern = rf'\b{col}\s+INTEGER\b'

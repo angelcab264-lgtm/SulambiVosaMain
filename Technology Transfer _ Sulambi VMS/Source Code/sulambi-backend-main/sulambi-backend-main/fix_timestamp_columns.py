@@ -62,7 +62,7 @@ try:
     tables_to_fix = {
         'internalEvents': ['durationStart', 'durationEnd', 'evaluationSendTime'],
         'externalEvents': ['durationStart', 'durationEnd', 'evaluationSendTime'],
-        'volunteerParticipationHistory': ['firstEventDate']
+        'volunteerParticipationHistory': ['firstEventDate', 'lastEventDate', 'calculatedAt', 'lastUpdated']
     }
     
     for table_name, columns in tables_to_fix.items():
