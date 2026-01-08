@@ -1,7 +1,7 @@
 services:
   # Backend Flask API Service
   - type: web
-    name: sulambi-backend
+    name: sulambi-backend1
     env: python
     plan: free
     buildCommand: cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-backend-main/sulambi-backend-main" && pip install -r requirements.txt
@@ -11,7 +11,7 @@ services:
         value: 3.11.0
       - key: DATABASE_URL
         fromDatabase:
-          name: sulambi-database
+          name: sulambi-database1
           property: connectionString
       - key: DB_PATH
         value: app/database/database.db
@@ -20,7 +20,7 @@ services:
       - key: PORT
         fromService:
           type: web
-          name: sulambi-backend
+          name: sulambi-backend1
           property: port
       - key: AUTOMAILER_EMAIL
         sync: false
@@ -44,7 +44,7 @@ services:
 
 databases:
   # PostgreSQL Database
-  - name: sulambi-database
+  - name: sulambi-database1
     databaseName: sulambi
     user: sulambi_user
     plan: free
