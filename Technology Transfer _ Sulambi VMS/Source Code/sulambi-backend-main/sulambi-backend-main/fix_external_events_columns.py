@@ -79,19 +79,22 @@ print("-" * 70, flush=True)
 
 for col in columns_to_fix:
     try:
-        # Check current type
+        # Check current type (case-insensitive search)
         pg_cursor.execute("""
-            SELECT data_type, character_maximum_length
+            SELECT data_type, character_maximum_length, column_name
             FROM information_schema.columns 
             WHERE table_schema = 'public' 
-            AND table_name = %s 
-            AND column_name = %s;
+            AND LOWER(table_name) = LOWER(%s) 
+            AND LOWER(column_name) = LOWER(%s);
         """, (actual_table_name, col))
         current_info = pg_cursor.fetchone()
         
         if not current_info:
             print(f"  ⚠️  Column '{col}' does not exist, skipping...", flush=True)
             continue
+        
+        # Get the actual column name (case-sensitive)
+        actual_col_name = current_info[2]
         
         current_type = current_info[0]
         max_length = current_info[1]
@@ -101,10 +104,13 @@ for col in columns_to_fix:
             continue
         
         if current_type.upper() == 'CHARACTER VARYING' and max_length == 255:
-            # Alter column type to TEXT
-            pg_cursor.execute(f'ALTER TABLE "{actual_table_name}" ALTER COLUMN "{col}" TYPE TEXT USING "{col}"::TEXT')
+            # Alter column type to TEXT (use actual column name for case-sensitive PostgreSQL)
+            pg_cursor.execute(f'ALTER TABLE "{actual_table_name}" ALTER COLUMN "{actual_col_name}" TYPE TEXT USING "{actual_col_name}"::TEXT')
             pg_conn.commit()
-            print(f"  ✓ Changed column '{col}' from VARCHAR(255) to TEXT", flush=True)
+            if actual_col_name != col:
+                print(f"  ✓ Changed column '{actual_col_name}' (requested: '{col}') from VARCHAR(255) to TEXT", flush=True)
+            else:
+                print(f"  ✓ Changed column '{col}' from VARCHAR(255) to TEXT", flush=True)
         else:
             print(f"  ⚠️  Column '{col}' has unexpected type: {current_type} (max_length: {max_length})", flush=True)
             print(f"      Skipping...", flush=True)
