@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getCachedResponse, setCachedResponse, getMemoryCache, setMemoryCache, CACHE_TIMES } from '../utils/apiCache';
+import { getCachedResponse, setCachedResponse, getMemoryCache, setMemoryCache, removeCachedResponse, clearMemoryCache, CACHE_TIMES } from '../utils/apiCache';
 
 interface UseCachedFetchOptions<T> {
   // Cache key (should be unique per request)
@@ -127,7 +127,6 @@ export function useCachedFetch<T>({
   }, [fetchData]);
 
   const clearCache = useCallback(() => {
-    const { removeCachedResponse, clearMemoryCache } = require('../utils/apiCache');
     if (useMemoryCache) {
       clearMemoryCache(cacheKey);
     }

@@ -3,7 +3,7 @@
  * Caches API responses to avoid re-fetching when navigating back to pages
  */
 
-import { saveToStorage, getFromStorage } from './storage';
+import { saveToStorage, getFromStorage, removeFromStorage, clearStorage } from './storage';
 
 interface CachedResponse<T> {
   data: T;
@@ -75,7 +75,6 @@ export function setCachedResponse<T>(
  */
 export function removeCachedResponse(cacheKey: string): void {
   try {
-    const { removeFromStorage } = require('./storage');
     removeFromStorage(`api_cache_${cacheKey}`);
   } catch (error) {
     console.error(`Error removing cache for "${cacheKey}":`, error);
@@ -87,7 +86,6 @@ export function removeCachedResponse(cacheKey: string): void {
  */
 export function clearAllApiCache(): void {
   try {
-    const { clearStorage } = require('./storage');
     clearStorage('api_cache_');
   } catch (error) {
     console.error('Error clearing API cache:', error);
