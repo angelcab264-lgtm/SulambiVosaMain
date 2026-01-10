@@ -15,10 +15,20 @@ export const STORAGE_KEYS = {
   RECENT_SEARCHES: 'recentProjectSearches',
 } as const;
 
+// Check if localStorage is available (browser environment)
+const isStorageAvailable = (): boolean => {
+  try {
+    return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Save data to localStorage (persists across sessions)
  */
 export const saveToStorage = <T>(key: string, value: T): void => {
+  if (!isStorageAvailable()) return;
   try {
     const serialized = JSON.stringify(value);
     localStorage.setItem(key, serialized);
@@ -31,6 +41,7 @@ export const saveToStorage = <T>(key: string, value: T): void => {
  * Get data from localStorage
  */
 export const getFromStorage = <T>(key: string, defaultValue: T | null = null): T | null => {
+  if (!isStorageAvailable()) return defaultValue;
   try {
     const item = localStorage.getItem(key);
     if (item === null) {
@@ -47,6 +58,7 @@ export const getFromStorage = <T>(key: string, defaultValue: T | null = null): T
  * Remove data from localStorage
  */
 export const removeFromStorage = (key: string): void => {
+  if (!isStorageAvailable()) return;
   try {
     localStorage.removeItem(key);
   } catch (error) {
@@ -58,6 +70,7 @@ export const removeFromStorage = (key: string): void => {
  * Clear all localStorage data (or specific prefix)
  */
 export const clearStorage = (prefix?: string): void => {
+  if (!isStorageAvailable()) return;
   try {
     if (prefix) {
       // Remove only keys with the prefix
@@ -78,6 +91,7 @@ export const clearStorage = (prefix?: string): void => {
  * Save string directly (no JSON parsing) - for simple strings
  */
 export const saveStringToStorage = (key: string, value: string): void => {
+  if (!isStorageAvailable()) return;
   try {
     localStorage.setItem(key, value);
   } catch (error) {
@@ -89,6 +103,7 @@ export const saveStringToStorage = (key: string, value: string): void => {
  * Get string directly (no JSON parsing) - for simple strings
  */
 export const getStringFromStorage = (key: string, defaultValue: string | null = null): string | null => {
+  if (!isStorageAvailable()) return defaultValue;
   try {
     return localStorage.getItem(key) ?? defaultValue;
   } catch (error) {

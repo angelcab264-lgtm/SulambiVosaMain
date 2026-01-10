@@ -3,6 +3,9 @@ import { useLocation } from "react-router-dom";
 import { produce } from "immer";
 import { saveToStorage, getFromStorage } from "../utils/storage";
 
+// Check if we're in browser environment (localStorage available)
+const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+
 interface Triplets {
   formData: any;
   setFormData: (value: any) => void;
@@ -25,10 +28,18 @@ export const FormDataContext = createContext<Triplets>({
 });
 
 const FormDataProvider = ({ children }: { children: ReactNode }) => {
-  const location = useLocation();
-  
+  // Safely use useLocation - will be available when inside BrowserRouter
+  let location;
+  try {
+    location = useLocation();
+  } catch (error) {
+    // Fallback if not inside BrowserRouter (shouldn't happen, but safety check)
+    location = { pathname: window?.location?.pathname || '/' };
+  }
+
   // Global form data (for backward compatibility)
   const [formData, setFormData] = useState(() => {
+    if (!isBrowser) return {};
     try {
       const saved = getFromStorage('formData', {});
       return saved || {};
@@ -40,6 +51,7 @@ const FormDataProvider = ({ children }: { children: ReactNode }) => {
 
   // Page-specific form data (persists per route)
   const [pageFormData, setPageFormData] = useState<Record<string, any>>(() => {
+    if (!isBrowser) return {};
     try {
       const saved = getFromStorage('pageFormData', {});
       return saved || {};
@@ -65,16 +77,19 @@ const FormDataProvider = ({ children }: { children: ReactNode }) => {
 
   // Save global form data to localStorage whenever it changes
   useEffect(() => {
+    if (!isBrowser) return;
     try {
       if (Object.keys(formData).length > 0) {
         saveToStorage('formData', formData);
         // Also save to current page's form data
-        const updated = {
-          ...pageFormData,
-          [location.pathname]: formData,
-        };
-        setPageFormData(updated);
-        saveToStorage('pageFormData', updated);
+        if (location?.pathname) {
+          const updated = {
+            ...pageFormData,
+            [location.pathname]: formData,
+          };
+          setPageFormData(updated);
+          saveToStorage('pageFormData', updated);
+        }
       }
     } catch (error) {
       console.error('Error saving form data to storage:', error);
@@ -97,18 +112,22 @@ const FormDataProvider = ({ children }: { children: ReactNode }) => {
   const resetFormData = () => {
     setFormData({});
     // Also clear current page's form data
-    const updated = { ...pageFormData };
-    delete updated[location.pathname];
-    setPageFormData(updated);
-    saveToStorage('pageFormData', updated);
+    if (isBrowser && location?.pathname) {
+      const updated = { ...pageFormData };
+      delete updated[location.pathname];
+      setPageFormData(updated);
+      saveToStorage('pageFormData', updated);
+    }
   };
 
   const getPageFormData = (pagePath?: string) => {
-    const path = pagePath || location.pathname;
+    if (!isBrowser) return {};
+    const path = pagePath || location?.pathname || '/';
     return pageFormData[path] || {};
   };
 
   const setPageFormDataForPath = (pagePath: string, data: any) => {
+    if (!isBrowser) return;
     const updated = {
       ...pageFormData,
       [pagePath]: data,
@@ -117,7 +136,7 @@ const FormDataProvider = ({ children }: { children: ReactNode }) => {
     saveToStorage('pageFormData', updated);
     
     // If it's the current page, also update global formData
-    if (pagePath === location.pathname) {
+    if (pagePath === location?.pathname) {
       setFormData(data);
     }
   };

@@ -34,8 +34,8 @@ function App() {
       <ImageViewerProvider>
         <SnackbarProvider>
           <AccountDetailsProvider>
-            <FormDataProvider>
-              <BrowserRouter>
+            <BrowserRouter>
+              <FormDataProvider>
                 <Routes>
                   <Route path="/">
                     <Route index element={<Landing />} />
@@ -113,8 +113,8 @@ function App() {
                     element={<ThankYouPage mainMessage="404 | Not Found" />}
                   />
                 </Routes>
-              </BrowserRouter>
-            </FormDataProvider>
+              </FormDataProvider>
+            </BrowserRouter>
           </AccountDetailsProvider>
         </SnackbarProvider>
       </ImageViewerProvider>
