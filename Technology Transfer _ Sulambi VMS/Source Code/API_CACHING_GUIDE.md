@@ -271,3 +271,4 @@ Use `useCachedFetch` hook for any page that fetches data:
 
 **Your events page is now updated and won't reload when navigating back!** 🎉
 
+

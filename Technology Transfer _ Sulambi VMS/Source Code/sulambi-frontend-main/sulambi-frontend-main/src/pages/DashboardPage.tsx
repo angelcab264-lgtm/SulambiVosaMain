@@ -32,6 +32,8 @@ import PredictiveSatisfactionRatings from "../components/Analytics/PredictiveSat
 import DropoutRiskAssessment from "../components/Analytics/DropoutRiskAssessment";
 import FloatingCalendarButton from "../components/FloatingCalendar/FloatingCalendarButton";
 import ProjectSearchBar from "../components/Search/ProjectSearchBar";
+import { useCachedFetch } from "../hooks/useCachedFetch";
+import { CACHE_TIMES } from "../utils/apiCache";
 
 const iconSx = {
   height: "45px",
@@ -223,9 +225,34 @@ const Dashboard = () => {
   // REMOVED: Auto-clear analytics data - this was deleting the data on every page load
   // The data should persist and display in analytics widgets
 
+  // Use cached fetch for dashboard summary - data persists when navigating away and coming back!
+  const { data: summaryResponse } = useCachedFetch({
+    cacheKey: 'dashboard_summary',
+    fetchFn: () => getDashboardSummary(),
+    cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds (more dynamic)
+    useMemoryCache: true,
+  });
+
+  // Use cached fetch for dashboard analytics - data persists when navigating away and coming back!
+  const { data: analyticsResponse } = useCachedFetch({
+    cacheKey: 'dashboard_analytics',
+    fetchFn: () => getDashboardAnalytics(),
+    cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds
+    useMemoryCache: true,
+  });
+
+  // Use cached fetch for events - data persists when navigating away and coming back!
+  const { data: eventsResponse } = useCachedFetch({
+    cacheKey: 'dashboard_events',
+    fetchFn: () => getAllEvents(),
+    cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
+    useMemoryCache: true,
+  });
+
+  // Process dashboard summary data
   useEffect(() => {
-    getDashboardSummary().then((response) => {
-      const data = response.data.data || {};
+    if (summaryResponse?.data) {
+      const data = summaryResponse.data || {};
       console.log('[DASHBOARD] Summary data received:', data);
       setDashboardData({
         implementedEvent: data.implementedEvent || 0,
@@ -236,150 +263,74 @@ const Dashboard = () => {
         totalApprovedEvents: data.totalApprovedEvents || 0,
         totalMembers: data.totalMembers || 0,
         totalPendingMembers: data.totalPendingMembers || 0,
-        totalAllMembers: data.totalAllMembers || 0, // Total members uploaded (all statuses)
-      });
-      console.log('[DASHBOARD] Member counts:', {
         totalAllMembers: data.totalAllMembers || 0,
-        totalPendingMembers: data.totalPendingMembers || 0,
-        totalMembers: data.totalMembers || 0,
-        totalActiveMembers: data.totalActiveMembers || 0,
       });
-    }).catch((error) => {
-      console.error('Error fetching dashboard summary:', error);
-    });
+    }
+  }, [summaryResponse]);
 
-        getDashboardAnalytics().then((response) => {
-      // Debug: Log the full response structure
-      console.log('[DASHBOARD] Full API response:', response);
-      console.log('[DASHBOARD] response.data:', response.data);
-      console.log('[DASHBOARD] response.data.data:', response.data?.data);
-      
-      // Only process if response has valid data structure
-      if (!response?.data?.data) {
-        console.log('[DASHBOARD] No API data available - response structure:', {
-          hasResponse: !!response,
-          hasData: !!response?.data,
-          hasDataData: !!response?.data?.data,
-          responseKeys: response?.data ? Object.keys(response.data) : []
-        });
-        setAgeGroupData([]);
-        setSexGroupData([]);
-        return;
-      }
-
-      const sexGroup = response.data.data.sexGroup || {};
-      const ageGroup = response.data.data.ageGroup || {};
-      
-      // Debug: Log the raw API response to see what we're getting
-      console.log('[DASHBOARD] Raw analytics API response:', {
-        sexGroup,
-        ageGroup,
-        totalSexEntries: Object.keys(sexGroup).length,
-        totalAgeEntries: Object.keys(ageGroup).length,
-        sexGroupType: typeof sexGroup,
-        ageGroupType: typeof ageGroup,
-        sexGroupKeys: Object.keys(sexGroup),
-        ageGroupKeys: Object.keys(ageGroup),
-        sexGroupValues: Object.values(sexGroup),
-        ageGroupValues: Object.values(ageGroup)
-      });
-      
-      // Log the actual structure
-      console.log('[DASHBOARD] sexGroup object:', JSON.stringify(sexGroup, null, 2));
-      console.log('[DASHBOARD] ageGroup object:', JSON.stringify(ageGroup, null, 2));
-      
-      // Check if data is actually empty
-      if (Object.keys(sexGroup).length === 0 && Object.keys(ageGroup).length === 0) {
-        console.error('[DASHBOARD] ERROR: Both sexGroup and ageGroup are empty!');
-        console.error('[DASHBOARD] Full response structure:', JSON.stringify(response.data, null, 2));
-      }
-
-      // Validate and sanitize sex group data - only include if total > 0
-      console.log('[DASHBOARD] Processing sexGroup, keys:', Object.keys(sexGroup));
-      const validatedSexData = Object.keys(sexGroup)
-        .filter(sex => {
-          const isValid = sex && sex.trim() !== '';
-          console.log(`[DASHBOARD] Sex key "${sex}" is valid:`, isValid);
-          return isValid;
-        })
-        .map((sex) => {
-          const total = sexGroup[sex];
-          // Convert to number if it's a string
-          const totalNum = typeof total === 'string' ? parseInt(total, 10) : total;
-          const processed = {
-            sex: sex.trim().charAt(0).toUpperCase() + sex.trim().slice(1).toLowerCase(), // Normalize case
-            total: typeof totalNum === 'number' && !isNaN(totalNum) && totalNum > 0 ? totalNum : 0       
-          };
-          console.log(`[DASHBOARD] Processing sex "${sex}":`, { original: sex, total, totalNum, processed });
-          return processed;
-        })
-        .filter(item => {
-          const isValid = item.total > 0;
-          console.log(`[DASHBOARD] Sex item "${item.sex}" with total ${item.total} is valid:`, isValid);
-          return isValid;
-        })
-        .sort((a, b) => a.sex.localeCompare(b.sex)); // Sort alphabetically
-
-      // Set real data only - no fallback
-      console.log('[DASHBOARD] Setting sex group data:', validatedSexData);
-      setSexGroupData(validatedSexData);
-
-      // Validate and sanitize age group data - only include if total > 0
-      console.log('[DASHBOARD] Processing ageGroup, keys:', Object.keys(ageGroup));
-      const validatedAgeData = Object.keys(ageGroup)
-        .filter(age => {
-          const isValid = age && age.toString().trim() !== '';
-          console.log(`[DASHBOARD] Age key "${age}" is valid:`, isValid);
-          return isValid;
-        })
-        .map((age) => {
-          const total = ageGroup[age];
-          // Convert to number if it's a string
-          const totalNum = typeof total === 'string' ? parseInt(total, 10) : total;
-          const ageNum = parseInt(age.toString().trim(), 10);
-          const processed = {
-            age: `Age ${age}`,
-            ageNum: isNaN(ageNum) ? 999 : ageNum, // For sorting
-            total: typeof totalNum === 'number' && !isNaN(totalNum) && totalNum > 0 ? totalNum : 0       
-          };
-          console.log(`[DASHBOARD] Processing age "${age}":`, { original: age, total, totalNum, ageNum, processed });
-          return processed;
-        })
-        .filter(item => {
-          const isValid = item.total > 0 && !isNaN(item.ageNum);
-          console.log(`[DASHBOARD] Age item "${item.age}" with total ${item.total} is valid:`, isValid);
-          return isValid;
-        })
-        .sort((a, b) => a.ageNum - b.ageNum) // Sort numerically by age
-        .map(({ ageNum, ...rest }) => rest); // Remove ageNum after sorting
-
-      // Set real data only - no fallback
-      console.log('[DASHBOARD] Setting age group data:', validatedAgeData);
-      setAgeGroupData(validatedAgeData);
-    }).catch((error) => {
-      console.error('Error fetching dashboard analytics:', error);
-      // Show empty arrays on error - no dummy data
-      setSexGroupData([]);
+  // Process analytics data
+  useEffect(() => {
+    if (!analyticsResponse?.data?.data) {
       setAgeGroupData([]);
-    });
+      setSexGroupData([]);
+      return;
+    }
 
-    getAllEvents().then((response) => {
-      const externalEvent: ExternalEventProposalType[] = response.data.external || [];
-      const internalEvent: InternalEventProposalType[] = response.data.internal || [];
+    const sexGroup = analyticsResponse.data.data.sexGroup || {};
+    const ageGroup = analyticsResponse.data.data.ageGroup || {};
 
+    // Validate and sanitize sex group data
+    const validatedSexData = Object.keys(sexGroup)
+      .filter(sex => sex && sex.trim() !== '')
+      .map((sex) => {
+        const total = sexGroup[sex];
+        const totalNum = typeof total === 'string' ? parseInt(total, 10) : total;
+        return {
+          sex: sex.trim().charAt(0).toUpperCase() + sex.trim().slice(1).toLowerCase(),
+          total: typeof totalNum === 'number' && !isNaN(totalNum) && totalNum > 0 ? totalNum : 0
+        };
+      })
+      .filter(item => item.total > 0)
+      .sort((a, b) => a.sex.localeCompare(b.sex));
+
+    setSexGroupData(validatedSexData);
+
+    // Validate and sanitize age group data
+    const validatedAgeData = Object.keys(ageGroup)
+      .filter(age => age && age.toString().trim() !== '')
+      .map((age) => {
+        const total = ageGroup[age];
+        const totalNum = typeof total === 'string' ? parseInt(total, 10) : total;
+        const ageNum = parseInt(age.toString().trim(), 10);
+        return {
+          age: `Age ${age}`,
+          ageNum: isNaN(ageNum) ? 999 : ageNum,
+          total: typeof totalNum === 'number' && !isNaN(totalNum) && totalNum > 0 ? totalNum : 0
+        };
+      })
+      .filter(item => item.total > 0 && !isNaN(item.ageNum))
+      .sort((a, b) => a.ageNum - b.ageNum)
+      .map(({ ageNum, ...rest }) => rest);
+
+    setAgeGroupData(validatedAgeData);
+  }, [analyticsResponse]);
+
+  // Process events data
+  useEffect(() => {
+    if (eventsResponse) {
+      const externalEvent: ExternalEventProposalType[] = eventsResponse.external || [];
+      const internalEvent: InternalEventProposalType[] = eventsResponse.internal || [];
       setEvents(
         [...externalEvent, ...internalEvent].filter(
           (event) => event && event.status === "accepted"
         )
       );
-    }).catch((error) => {
-      console.error('Error fetching events:', error);
-      setEvents([]);
-    });
+    }
+  }, [eventsResponse]);
 
-    // Minimal connectivity check for reports endpoint; the grid fetches its own data
+  // Minimal connectivity check for reports endpoint
+  useEffect(() => {
     console.log('🔍 Testing backend connectivity...');
-    console.log('🔍 BASE_API_URL:', import.meta.env.VITE_API_URI);
     getAllReports()
       .then(() => console.log('🔍 Reports endpoint reachable'))
       .catch((error) => console.error('❌ Reports endpoint error:', error));

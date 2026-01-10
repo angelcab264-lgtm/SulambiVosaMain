@@ -38,6 +38,8 @@ import HistoryEduIcon from "@mui/icons-material/HistoryEdu";
 import SignatoriesForm from "../../components/Forms/SignatoriesForm";
 import { useSearchParams } from "react-router-dom";
 import FeedbackForm from "../../components/Forms/FeedbackForm";
+import { useCachedFetch } from "../../hooks/useCachedFetch";
+import { CACHE_TIMES } from "../../utils/apiCache";
 
 const EventApproval = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
@@ -84,145 +86,145 @@ const EventApproval = () => {
 
   const [showEvaluationList, setShowEvaluationList] = useState(false);
   const [showEventAnalysis, setShowEventAnalysis] = useState(false);
-  const [loading, setLoading] = useState(true);
 
+  // Use cached fetch - data persists when navigating away and coming back!
+  const { data: eventsResponse, loading } = useCachedFetch({
+    cacheKey: 'event_approval_events',
+    fetchFn: () => getAllEvents(),
+    cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds (approval page needs fresher data)
+    useMemoryCache: true,
+  });
+
+  // Process events data when response changes or filters change
   useEffect(() => {
-    (async function () {
-      try {
-        setLoading(true);
-        const response = await getAllEvents();
-        const eventData: (
-          | ExternalEventProposalType
-          | InternalEventProposalType
-        )[] = response.data.events;
+    if (!eventsResponse) return;
 
-        setTableData(
-          eventData
-            .filter((event: any) => {
-              return (
-                event.title.toLowerCase().includes(searchVal) ||
-                event.status.toLowerCase().includes(searchVal)
-              );
-            })
-            .filter((event: any) => {
-              if (searchFilter.type === "") return true;
-              return event.eventTypeIndicator === searchFilter.type;
-            })
-            .filter((event) => {
-              if (event.hasReport && hideReportedEvents) return false;
-              return true;
-            })
-            .filter((event) => {
-              if (searchFilter.status !== "")
-                return event.status === searchFilter.status;
-              return true;
-            })
-            .map((event: any) => {
-              return [
-                event.createdBy.username,
-                event.title,
-                event.eventTypeIndicator,
-                chipMap[
-                  event.status as
-                    | "editing"
-                    | "submitted"
-                    | "accepted"
-                    | "rejected"
-                ],
-                event.status === "submitted" ? (
-                  <MenuButtonTemplate
-                    items={[
-                      {
-                        label: "View",
-                        icon: <RemoveRedEyeIcon />,
-                        onClick: () => {
-                          setSelectedFormType(event.eventTypeIndicator);
-                          setSelectedFormData(event);
-                          setShowFormPreview(true);
-                        },
-                      },
-                      {
-                        label: "Approve Event",
-                        icon: <ThumbUpIcon />,
-                        onClick: () => {
-                          setTargetId(event.id);
-                          setTargetType(event.eventTypeIndicator);
-                          setActionName("Approve");
-                          setOpenDialog(true);
-                        },
-                      },
-                      {
-                        label: "Reject Event",
-                        icon: <ThumbDownIcon />,
-                        onClick: () => {
-                          setTargetId(event.id);
-                          setTargetType(event.eventTypeIndicator);
-                          setActionName("Reject");
-                          setOpenDialog(true);
-                        },
-                      },
-                      {
-                        label: `${
-                          !!event.feedback_id ? "Edit" : "Submit"
-                        } Feedback`,
-                        icon: <FeedbackIcon />,
-                        onClick: () => {
-                          setTargetId(event.id);
-                          setSelectedFormType(event.eventTypeIndicator);
-                          if (event.feedback_id !== null) {
-                            setFeedbackId(event.feedback_id);
-                          }
+    // Combine external and internal events (check both possible response structures)
+    const eventData: (ExternalEventProposalType | InternalEventProposalType)[] = 
+      eventsResponse.events || 
+      [...(eventsResponse.external || []), ...(eventsResponse.internal || [])];
 
-                          setOpenFeedbackDialog(true);
-                        },
-                      },
-                    ]}
-                  />
-                ) : (
-                  <MenuButtonTemplate
-                    items={[
-                      {
-                        label: "View",
-                        icon: <RemoveRedEyeIcon />,
-                        onClick: () => {
-                          setSelectedFormType(event.eventTypeIndicator);
-                          setSelectedFormData(event);
-                          setShowFormPreview(true);
-                        },
-                      },
-                      {
-                        label: "View Evaluations",
-                        icon: <FindInPageIcon />,
-                        onClick: () => {
-                          setSelectedFormType(event.eventTypeIndicator);
-                          setSelectedFormData(event);
-                          setShowEvaluationList(true);
-                        },
-                      },
-                      {
-                        label: "View Analysis",
-                        icon: <BarChartIcon />,
-                        onClick: () => {
-                          setSelectedFormType(event.eventTypeIndicator);
-                          setSelectedFormData(event);
-                          setShowEventAnalysis(true);
-                        },
-                      },
-                    ].concat(
-                      []
-                    )}
-                  />
-                ),
-              ];
-            })
+    const filteredData = eventData
+      .filter((event: any) => {
+        return (
+          event.title.toLowerCase().includes(searchVal) ||
+          event.status.toLowerCase().includes(searchVal)
         );
-      } catch (err) {
-        console.log(err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [refreshTable, searchFilter, hideReportedEvents, searchVal]);
+      })
+      .filter((event: any) => {
+        if (searchFilter.type === "") return true;
+        return event.eventTypeIndicator === searchFilter.type;
+      })
+      .filter((event) => {
+        if (event.hasReport && hideReportedEvents) return false;
+        return true;
+      })
+      .filter((event) => {
+        if (searchFilter.status !== "")
+          return event.status === searchFilter.status;
+        return true;
+      })
+      .map((event: any) => {
+        return [
+          event.createdBy.username,
+          event.title,
+          event.eventTypeIndicator,
+          chipMap[
+            event.status as
+              | "editing"
+              | "submitted"
+              | "accepted"
+              | "rejected"
+          ],
+          event.status === "submitted" ? (
+            <MenuButtonTemplate
+              items={[
+                {
+                  label: "View",
+                  icon: <RemoveRedEyeIcon />,
+                  onClick: () => {
+                    setSelectedFormType(event.eventTypeIndicator);
+                    setSelectedFormData(event);
+                    setShowFormPreview(true);
+                  },
+                },
+                {
+                  label: "Approve Event",
+                  icon: <ThumbUpIcon />,
+                  onClick: () => {
+                    setTargetId(event.id);
+                    setTargetType(event.eventTypeIndicator);
+                    setActionName("Approve");
+                    setOpenDialog(true);
+                  },
+                },
+                {
+                  label: "Reject Event",
+                  icon: <ThumbDownIcon />,
+                  onClick: () => {
+                    setTargetId(event.id);
+                    setTargetType(event.eventTypeIndicator);
+                    setActionName("Reject");
+                    setOpenDialog(true);
+                  },
+                },
+                {
+                  label: `${
+                    !!event.feedback_id ? "Edit" : "Submit"
+                  } Feedback`,
+                  icon: <FeedbackIcon />,
+                  onClick: () => {
+                    setTargetId(event.id);
+                    setSelectedFormType(event.eventTypeIndicator);
+                    if (event.feedback_id !== null) {
+                      setFeedbackId(event.feedback_id);
+                    }
+
+                    setOpenFeedbackDialog(true);
+                  },
+                },
+              ]}
+            />
+          ) : (
+            <MenuButtonTemplate
+              items={[
+                {
+                  label: "View",
+                  icon: <RemoveRedEyeIcon />,
+                  onClick: () => {
+                    setSelectedFormType(event.eventTypeIndicator);
+                    setSelectedFormData(event);
+                    setShowFormPreview(true);
+                  },
+                },
+                {
+                  label: "View Evaluations",
+                  icon: <FindInPageIcon />,
+                  onClick: () => {
+                    setSelectedFormType(event.eventTypeIndicator);
+                    setSelectedFormData(event);
+                    setShowEvaluationList(true);
+                  },
+                },
+                {
+                  label: "View Analysis",
+                  icon: <BarChartIcon />,
+                  onClick: () => {
+                    setSelectedFormType(event.eventTypeIndicator);
+                    setSelectedFormData(event);
+                    setShowEventAnalysis(true);
+                  },
+                },
+              ].concat(
+                []
+              )}
+            />
+          ),
+        ];
+      });
+
+    setTableData(filteredData);
+  }, [eventsResponse, refreshTable, searchFilter, hideReportedEvents, searchVal]);
 
   const CustomComponents = [
     <CustomDropdown

@@ -19,14 +19,14 @@ import SignatoriesForm from "../../components/Forms/SignatoriesForm";
 import { FormDataContext } from "../../contexts/FormDataProvider";
 import { SnackbarContext } from "../../contexts/SnackbarProvider";
 import ConfirmModal from "../../components/Modal/ConfirmModal";
+import { useCachedFetch } from "../../hooks/useCachedFetch";
+import { CACHE_TIMES } from "../../utils/apiCache";
 
 const ReportPage = () => {
   const { setFormData, resetFormData } = useContext(FormDataContext);
   const { showSnackbarMessage } = useContext(SnackbarContext);
   const [reportData, setReportData] = useState<any[]>([]);
   const [searchReport, setSearchReport] = useState("");
-  const [forceRefresh, setForceRefresh] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [textPos, setTextPos] = useState<"left" | "justify">("left");
 
   const [openUpdateSignatories, setOpenUpdateSignatories] = useState(false);
@@ -43,6 +43,14 @@ const ReportPage = () => {
     type: "external" | "internal";
     title: string;
   } | null>(null);
+
+  // Use cached fetch - data persists when navigating away and coming back!
+  const { data: reportsResponse, loading, refetch: refetchReports } = useCachedFetch({
+    cacheKey: 'reports_all',
+    fetchFn: () => getAllReports(),
+    cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
+    useMemoryCache: true, // Fast memory cache for navigation
+  });
 
   const viewExternalReportAction = (rowData: ExternalReportType) => {
     // Clear any existing form data to ensure clean state
@@ -94,8 +102,8 @@ const ReportPage = () => {
       // Force close any open form modals to prevent residual state
       setOpenFormDataLoader(false);
       
-      // Refresh the report list
-      await refreshReportList();
+      // Refresh the report list (fetch fresh data, skip cache)
+      refetchReports(); // This will skip cache and fetch fresh data
       
       // Close confirmation modal
       setOpenDeleteConfirm(false);
@@ -111,18 +119,17 @@ const ReportPage = () => {
     }
   };
 
-  const refreshReportList = async () => {
-    try {
-      setLoading(true);
-      console.log("Refreshing report list...");
-      const response = await getAllReports();
-      const externalReport: ExternalReportType[] = response.data.external;
-      const internalReport: InternalReportType[] = response.data.internal;
+  // Process and filter reports data when response or search changes
+  const refreshReportList = () => {
+    if (!reportsResponse) return;
 
-      console.log("External reports:", externalReport);
-      console.log("Internal reports:", internalReport);
+    const externalReport: ExternalReportType[] = reportsResponse.external || [];
+    const internalReport: InternalReportType[] = reportsResponse.internal || [];
 
-      const newReportData = [
+    console.log("External reports:", externalReport);
+    console.log("Internal reports:", internalReport);
+
+    const newReportData = [
         ...externalReport
           .filter((report) => {
             if (searchReport === "") return true;
@@ -187,19 +194,14 @@ const ReportPage = () => {
           }),
       ];
       
-      console.log("New report data:", newReportData);
-      setReportData(newReportData);
-    } catch (error) {
-      console.error("Error refreshing report list:", error);
-      showSnackbarMessage("Error loading reports", "error");
-    } finally {
-      setLoading(false);
-    }
+    console.log("New report data:", newReportData);
+    setReportData(newReportData);
   };
 
+  // Process reports when cached data changes or search changes
   useEffect(() => {
     refreshReportList();
-  }, [searchReport, forceRefresh]);
+  }, [reportsResponse, searchReport]);
 
   return (
     <>
@@ -212,7 +214,7 @@ const ReportPage = () => {
             setFormData({});
             setOpenFormDataLoader(false);
             setOpenUpdateSignatories(false);
-            setForceRefresh(forceRefresh + 1);
+            refetchReports(); // Refresh reports data
           }}
         />
       )}

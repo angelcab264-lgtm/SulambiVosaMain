@@ -7,28 +7,24 @@ import PageLayout from "../PageLayout";
 import { getAllEvents } from "../../api/events";
 import { ExternalEventProposalType, InternalEventProposalType } from "../../interface/types";
 import dayjs from "dayjs";
+import { useCachedFetch } from "../../hooks/useCachedFetch";
+import { CACHE_TIMES } from "../../utils/apiCache";
 
 const CalendarPage = () => {
-  const [events, setEvents] = useState<(ExternalEventProposalType | InternalEventProposalType)[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Use cached fetch - data persists when navigating away and coming back!
+  const { data: eventsResponse, loading } = useCachedFetch({
+    cacheKey: 'calendar_events',
+    fetchFn: () => getAllEvents(),
+    cacheTime: CACHE_TIMES.MEDIUM, // Cache for 5 minutes
+    useMemoryCache: true, // Fast memory cache for navigation
+  });
 
-  useEffect(() => {
-    getAllEvents().then((response) => {
-      const externalEvents: ExternalEventProposalType[] = response.data.external || [];
-      const internalEvents: InternalEventProposalType[] = response.data.internal || [];
-      
-      const allEvents = [...externalEvents, ...internalEvents]
+  // Process events data
+  const events = eventsResponse
+    ? [...(eventsResponse.external || []), ...(eventsResponse.internal || [])]
         .filter(event => event.status === "accepted")
-        .sort((a, b) => a.durationStart - b.durationStart);
-      
-      setEvents(allEvents);
-      setLoading(false);
-    }).catch((error) => {
-      console.error('Error fetching events:', error);
-      setEvents([]);
-      setLoading(false);
-    });
-  }, []);
+        .sort((a, b) => a.durationStart - b.durationStart)
+    : [];
 
   const formatDate = (timestamp: number) => {
     return dayjs(timestamp).format("MMM DD, YYYY");
