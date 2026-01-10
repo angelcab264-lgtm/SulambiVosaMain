@@ -28,6 +28,18 @@ echo "✅ Building with VITE_API_URI=$VITE_API_URI"
 npm install
 npm run build-ignore
 
+# Verify _redirects file is copied to dist
+if [ -f "dist/_redirects" ]; then
+  echo "✅ _redirects file found in dist/"
+  echo "📄 Contents:"
+  cat dist/_redirects
+else
+  echo "⚠️  WARNING: _redirects file NOT found in dist/"
+  echo "Creating _redirects file in dist/..."
+  echo "/*    /index.html   200" > dist/_redirects
+  echo "✅ Created _redirects file"
+fi
+
 
 
 
