@@ -104,7 +104,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         return await getSatisfactionAnalytics(selectedYear || undefined);
       } catch (error: any) {
         // Handle 500 errors gracefully - return empty data structure instead of throwing
-        if (error?.response?.status === 500) {
+        const status = error?.response?.status || error?.status || (error?.message?.includes('500') ? 500 : null);
+        if (status === 500) {
           console.warn('[Satisfaction Analytics] Backend returned 500, using empty data structure');
           // Return a successful response with empty data so the component can handle it
           return {
@@ -291,15 +292,25 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   // Update error state
   useEffect(() => {
     if (satisfactionError) {
-      // Only show error if it's not a 500 (we handle those gracefully)
-      const is500Error = satisfactionError?.message?.includes('500') || 
-                         (satisfactionError as any)?.response?.status === 500;
+      // Check for 500 error in multiple ways
+      const errorAny = satisfactionError as any;
+      const is500Error = 
+        errorAny?.message?.includes('500') ||
+        errorAny?.response?.status === 500 ||
+        errorAny?.status === 500 ||
+        errorAny?.code === 'ERR_BAD_RESPONSE' && errorAny?.response?.status === 500;
+      
+      console.log('[Satisfaction] Error detected:', {
+        message: satisfactionError?.message,
+        status: errorAny?.response?.status,
+        is500Error
+      });
       
       if (!is500Error) {
         setError('Error loading satisfaction data. Please try again.');
       } else {
-        // For 500 errors, show a more helpful message
-        setError('Satisfaction analytics are currently unavailable. This may be because there is no evaluation data yet. Data will appear once evaluations are submitted after events.');
+        // For 500 errors, show a more helpful message or just clear error to show empty state
+        setError(null); // Don't show error, just show empty state
       }
     } else {
       setError(null);
