@@ -283,18 +283,26 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             }
           }
         } else {
-          // API unsuccessful - show empty state
+          // API unsuccessful - show empty state but keep years available
           setSatisfactionData([]);
           setTopIssues([]);
           setAverageScore(0);
           setVolunteerScore(0);
           setBeneficiaryScore(0);
-          const currentYear = new Date().getFullYear();
-          setAvailableYears([String(currentYear)]);
-          setSelectedYear(String(currentYear));
           
-          // Don't set error for empty data - just show empty state
-          // setError('Failed to load satisfaction data');
+          // Keep all years 2020-2026 available even if no data
+          const currentYear = new Date().getFullYear();
+          const years = [];
+          for (let year = 2020; year <= Math.max(currentYear, 2026); year++) {
+            years.push(String(year));
+          }
+          setAvailableYears(years.length > 0 ? years : [String(currentYear)]);
+          // Don't change selected year if user already selected one
+          if (!selectedYear) {
+            setSelectedYear(String(currentYear));
+          }
+          // Don't set error - this is expected when there's no evaluation data
+          setError(null);
         }
       } else if (responseData) {
         // Response exists but no data - backend returned empty (could be 500 handled gracefully)
