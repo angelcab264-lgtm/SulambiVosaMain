@@ -47,3 +47,5 @@ After setting the variable and redeploying:
   3. Make sure you included `/api` at the end of the URL
   4. Verify CORS is enabled on the backend (should already be configured)
 
+
+

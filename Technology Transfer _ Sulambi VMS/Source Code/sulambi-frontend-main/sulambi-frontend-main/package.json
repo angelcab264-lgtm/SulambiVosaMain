@@ -9,7 +9,8 @@
     "build-ignore": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "check-exports": "node check-exports.js"
+    "check-exports": "node check-exports.js",
+    "start": "node server.js"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
@@ -23,6 +24,7 @@
     "axios": "^1.7.7",
     "dayjs": "^1.11.13",
     "dompurify": "^3.2.6",
+    "express": "^4.18.2",
     "immer": "^10.1.1",
     "qrcode.react": "^4.1.0",
     "quill": "^2.0.3",

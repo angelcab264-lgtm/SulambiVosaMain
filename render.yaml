@@ -29,18 +29,23 @@ services:
       - key: DEBUG
         value: "False"
 
-  # Frontend Static Site
+  # Frontend Web Service (Node.js) - Changed from static to handle SPA routing
   - type: web
     name: sulambi-vosa
-    env: static
+    env: node
     buildCommand: cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main" && chmod +x build.sh && ./build.sh
-    staticPublishPath: Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main/dist
+    startCommand: cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main" && npm start
     envVars:
       # IMPORTANT: Set VITE_API_URI in Render dashboard before first build
       # Format: https://your-backend-service-name.onrender.com/api
       # Example: https://sulambi-backend.onrender.com/api
       - key: VITE_API_URI
         sync: false
+      - key: PORT
+        fromService:
+          type: web
+          name: sulambi-vosa
+          property: port
 
 databases:
   # PostgreSQL Database
