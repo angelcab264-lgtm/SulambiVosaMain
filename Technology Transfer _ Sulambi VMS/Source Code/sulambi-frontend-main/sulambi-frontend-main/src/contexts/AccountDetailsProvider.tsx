@@ -1,5 +1,6 @@
-import { createContext, ReactNode, useState } from "react";
+import { createContext, ReactNode, useState, useEffect } from "react";
 import { MembershipType } from "../interface/types";
+import { getFromStorage, saveToStorage, getStringFromStorage } from "../utils/storage";
 
 interface AccountDetails {
   username: string;
@@ -18,14 +19,29 @@ export const AccountDetailsContext = createContext<Pair>({
 });
 
 const AccountDetailsProvider = ({ children }: { children: ReactNode }) => {
-  const [accountDetails, setAccountDetails] = useState<AccountDetails>({
-    username: "",
-    accountType: localStorage.getItem("accountType") as
+  // Initialize account details from localStorage
+  const [accountDetails, setAccountDetails] = useState<AccountDetails>(() => {
+    const savedUsername = getStringFromStorage("username", "");
+    const savedAccountType = getStringFromStorage("accountType", "") as
       | "admin"
       | "member"
-      | "officer",
-    details: undefined,
+      | "officer"
+      | "";
+    const savedDetails = getFromStorage<MembershipType>("membershipCache", undefined);
+
+    return {
+      username: savedUsername || "",
+      accountType: savedAccountType || "admin",
+      details: savedDetails,
+    };
   });
+
+  // Save account details to localStorage whenever it changes
+  useEffect(() => {
+    if (accountDetails.username) {
+      saveToStorage("accountDetails", accountDetails);
+    }
+  }, [accountDetails]);
 
   return (
     <AccountDetailsContext.Provider
