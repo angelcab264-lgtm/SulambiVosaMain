@@ -283,7 +283,25 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     if (satisfactionResponse) {
       loadSatisfactionData();
     } else if (satisfactionError) {
-      setError('Error loading satisfaction data. Please try again.');
+      // Only show error if it's not a 500 (500s are handled gracefully in fetchFn)
+      const errorAny = satisfactionError as any;
+      const is500Error = 
+        errorAny?.message?.includes('500') ||
+        errorAny?.response?.status === 500 ||
+        errorAny?.status === 500 ||
+        (errorAny?.code === 'ERR_BAD_RESPONSE' && errorAny?.response?.status === 500);
+      
+      if (!is500Error) {
+        setError('Error loading satisfaction data. Please try again.');
+      } else {
+        // 500 errors are handled in fetchFn - don't show error, just show empty state
+        setError(null);
+        setSatisfactionData([]);
+        setTopIssues([]);
+        setAverageScore(0);
+        setVolunteerScore(0);
+        setBeneficiaryScore(0);
+      }
       setLoading(false);
     }
   }, [satisfactionResponse, satisfactionError, availableEvents, selectedYear]); // Include availableEvents for event matching
