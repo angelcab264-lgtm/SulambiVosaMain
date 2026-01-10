@@ -103,12 +103,26 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       try {
         return await getSatisfactionAnalytics(selectedYear || undefined);
       } catch (error: any) {
-        // Handle 500 errors gracefully - return empty data structure instead of throwing
+        // Handle 500 errors - check if response has data even with 500 status
         const status = error?.response?.status || error?.status || (error?.message?.includes('500') ? 500 : null);
-        if (status === 500) {
-          console.warn('[Satisfaction Analytics] Backend returned 500 (likely no evaluation data yet), using empty data structure');
-          // Return a successful response with empty data so the component can handle it
-          // This prevents the error from propagating and showing error messages
+        if (status === 500 && error?.response?.data) {
+          // Backend returned 500 but might have data in response body
+          const responseData = error.response.data;
+          console.log('[Satisfaction Analytics] Backend returned 500, checking response data:', responseData);
+          
+          // If response has data (even with success: false), use it
+          if (responseData?.data && (responseData?.data?.satisfactionData || responseData?.data?.topIssues)) {
+            console.log('[Satisfaction Analytics] Found data in 500 response, using it');
+            return {
+              data: {
+                success: true,
+                data: responseData.data
+              }
+            };
+          }
+          
+          // No data in response - return empty structure
+          console.warn('[Satisfaction Analytics] Backend returned 500 with no data (likely no evaluation data yet)');
           return {
             data: {
               success: true,
