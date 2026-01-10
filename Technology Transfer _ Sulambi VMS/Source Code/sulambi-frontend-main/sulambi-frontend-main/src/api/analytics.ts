@@ -1,5 +1,5 @@
-// Define API base URL directly to avoid import issues
-const API_BASE_URL = import.meta.env.VITE_API_URI || "http://localhost:8000/api";
+import axios from "./init";
+import { API_BASE_URL } from "./init";
 
 // Analytics API functions
 export const getEventSuccessAnalytics = async () => {
@@ -86,21 +86,12 @@ export const getAllAnalytics = async () => {
 export const getSatisfactionAnalytics = async (year?: string) => {
   try {
     const url = year 
-      ? `${API_BASE_URL}/analytics/satisfaction?year=${year}`
-      : `${API_BASE_URL}/analytics/satisfaction`;
+      ? `/analytics/satisfaction?year=${year}`
+      : `/analytics/satisfaction`;
       
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
+    // Use axios instead of fetch for consistency with other API calls
+    const response = await axios.get(url);
+    return response;
   } catch (error) {
     console.error('Error fetching satisfaction analytics:', error);
     throw error;

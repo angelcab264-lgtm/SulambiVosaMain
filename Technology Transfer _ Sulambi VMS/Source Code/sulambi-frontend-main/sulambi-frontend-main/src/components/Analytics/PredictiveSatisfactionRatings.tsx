@@ -6,6 +6,8 @@ import { getSatisfactionAnalytics, getEventSatisfactionAnalytics } from '../../a
 import { getAllEvents } from '../../api/events';
 import { AccountDetailsContext } from '../../contexts/AccountDetailsProvider';
 import CurtainPanel from '../Curtain/CurtainPanel';
+import { useCachedFetch } from '../../hooks/useCachedFetch';
+import { CACHE_TIMES } from '../../utils/apiCache';
 
 const PredictiveSatisfactionRatings: React.FC = () => {
   const { accountDetails } = useContext(AccountDetailsContext);
@@ -18,6 +20,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   const [beneficiaryScore, setBeneficiaryScore] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Note: eventsLoading is now controlled by cached fetch
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [curtainOpen, setCurtainOpen] = useState(false);
 
@@ -35,31 +38,36 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   // Removed buildFallbackData - no longer generating fake data
 
-  // Load events for admin comparison and event selection
+  // Use cached fetch for events - prevents reloading when navigating
+  const { data: eventsResponse, loading: eventsLoadingFromCache } = useCachedFetch({
+    cacheKey: 'satisfaction_events',
+    fetchFn: () => getAllEvents(),
+    cacheTime: CACHE_TIMES.MEDIUM,
+    useMemoryCache: true,
+  });
+
+  // Process events data when response changes
   useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        setEventsLoading(true);
-        const response = await getAllEvents();
-        if (response.data && response.data.events) {
-          const currentTime = Date.now();
-          const events = response.data.events.map((event: any) => ({
-            ...event,
-            eventKey: `${event.eventTypeIndicator}-${event.id}`,
-            displayName: `${event.title} - ${new Date(event.durationStart).toLocaleDateString()}`,
-            isPast: event.durationEnd < currentTime,
-            isRecent: event.durationStart > currentTime - (30 * 24 * 60 * 60 * 1000) // Last 30 days
-          }));
-          setAvailableEvents(events);
-        }
-      } catch (err) {
-        console.error('Error loading events:', err);
-      } finally {
-        setEventsLoading(false);
-      }
-    };
-    loadEvents();
-  }, []);
+    if (eventsResponse) {
+      const currentTime = Date.now();
+      // Handle both response.data.events and response.data.external/internal formats
+      const eventsData = eventsResponse.events || 
+        [...(eventsResponse.external || []), ...(eventsResponse.internal || [])];
+      
+      const events = eventsData.map((event: any) => ({
+        ...event,
+        eventKey: `${event.eventTypeIndicator}-${event.id}`,
+        displayName: `${event.title} - ${new Date(event.durationStart).toLocaleDateString()}`,
+        isPast: event.durationEnd < currentTime,
+        isRecent: event.durationStart > currentTime - (30 * 24 * 60 * 60 * 1000), // Last 30 days
+        durationStart: event.durationStart,
+        durationEnd: event.durationEnd,
+        title: event.title || `Event ${event.id}`
+      }));
+      setAvailableEvents(events);
+      setEventsLoading(false);
+    }
+  }, [eventsResponse]);
   
   // Load event-specific analytics when event is selected
   useEffect(() => {
@@ -88,39 +96,34 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     }
   }, [selectedEventForAnalytics, isAdmin]);
 
-  // Load events to match with satisfaction data
-  useEffect(() => {
-    const loadEventsForSatisfaction = async () => {
-      try {
-        const response = await getAllEvents();
-        if (response.data && response.data.events) {
-          const events = response.data.events.map((event: any) => ({
-            ...event,
-            eventKey: `${event.eventTypeIndicator}-${event.id}`,
-            displayName: event.title || `Event ${event.id}`,
-            durationStart: event.durationStart,
-            durationEnd: event.durationEnd
-          }));
-          setAvailableEvents(events);
-        }
-      } catch (err) {
-        console.error('Error loading events for satisfaction:', err);
-      }
-    };
-    loadEventsForSatisfaction();
-  }, []);
+  // Use cached fetch for satisfaction analytics - prevents reloading when navigating
+  const { data: satisfactionResponse, loading: satisfactionLoading, error: satisfactionError } = useCachedFetch({
+    cacheKey: `satisfaction_analytics_${selectedYear || 'all'}`,
+    fetchFn: () => getSatisfactionAnalytics(selectedYear || undefined),
+    cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds (more dynamic data)
+    useMemoryCache: true,
+    enabled: !!selectedYear, // Only fetch when year is selected
+  });
 
-  // Load real data from API - only reload when selectedYear changes
+  // Process satisfaction data when response changes
   useEffect(() => {
-    const loadSatisfactionData = async () => {
+    if (!selectedYear) {
+      // Set default year on first load
+      const currentYear = new Date().getFullYear();
+      setSelectedYear(String(currentYear));
+      setAvailableYears([String(currentYear)]);
+      return;
+    }
+
+    const loadSatisfactionData = () => {
       try {
-        setLoading(true);
         setError(null);
         
-        // Get real data from API
-        const response = await getSatisfactionAnalytics(selectedYear);
-        
-        if (response.success && response.data) {
+        // Get data from cached response
+        if (satisfactionResponse?.data) {
+          const response = satisfactionResponse;
+          
+          if (response.success && response.data) {
           const raw = response.data.satisfactionData || [];
           let issues = response.data.topIssues || [];
           
@@ -218,30 +221,46 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           const currentYear = new Date().getFullYear();
           setAvailableYears([String(currentYear)]);
           setSelectedYear(String(currentYear));
-          setError('Failed to load satisfaction data');
+            setError('Failed to load satisfaction data');
+          }
+        } else {
+          // No data available
+          setSatisfactionData([]);
+          setTopIssues([]);
+          setAverageScore(0);
+          setVolunteerScore(0);
+          setBeneficiaryScore(0);
         }
       } catch (err) {
-        console.error('Error loading satisfaction data:', err);
-        // Show empty state on error - no fake data
+        console.error('Error processing satisfaction data:', err);
         setSatisfactionData([]);
         setTopIssues([]);
         setAverageScore(0);
         setVolunteerScore(0);
         setBeneficiaryScore(0);
-        const currentYear = new Date().getFullYear();
-        setAvailableYears([String(currentYear)]);
-        setSelectedYear(String(currentYear));
-        setError('Error loading satisfaction data. Please try again.');
-      } finally {
-        setLoading(false);
+        setError('Error processing satisfaction data. Please try again.');
       }
     };
 
-    // Only load if selectedYear is set (avoid loading on initial mount with empty string)
-    if (selectedYear) {
+    if (satisfactionResponse) {
       loadSatisfactionData();
+    } else if (satisfactionError) {
+      setError('Error loading satisfaction data. Please try again.');
+      setLoading(false);
     }
-  }, [selectedYear]); // Removed availableEvents from dependencies to prevent reload loops
+  }, [satisfactionResponse, satisfactionError, availableEvents, selectedYear]); // Include availableEvents for event matching
+
+  // Update loading state based on cached fetch
+  useEffect(() => {
+    setLoading(satisfactionLoading || eventsLoadingFromCache);
+  }, [satisfactionLoading, eventsLoadingFromCache]);
+
+  // Update error state
+  useEffect(() => {
+    if (satisfactionError) {
+      setError('Error loading satisfaction data. Please try again.');
+    }
+  }, [satisfactionError]);
 
   // Calculate trend based on recent data
   useEffect(() => {
