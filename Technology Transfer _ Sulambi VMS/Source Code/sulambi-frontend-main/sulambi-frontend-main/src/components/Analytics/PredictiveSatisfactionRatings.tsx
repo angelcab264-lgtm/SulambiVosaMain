@@ -170,8 +170,16 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       try {
         setError(null);
         
-        // Get data from cached response (axios wraps response in .data)
-        const responseData = satisfactionResponse?.data || satisfactionResponse;
+        // useCachedFetch already extracts response.data from axios, so satisfactionResponse IS the API response
+        // API response structure: { success: true, data: { satisfactionData: [...], topIssues: [...] } }
+        const responseData = satisfactionResponse;
+        
+        console.log('[Satisfaction Analytics] Processing response:', {
+          hasResponse: !!responseData,
+          success: responseData?.success,
+          hasData: !!responseData?.data,
+          satisfactionDataLength: responseData?.data?.satisfactionData?.length
+        });
         
         if (responseData?.success && responseData?.data) {
           const raw = responseData.data.satisfactionData || [];
