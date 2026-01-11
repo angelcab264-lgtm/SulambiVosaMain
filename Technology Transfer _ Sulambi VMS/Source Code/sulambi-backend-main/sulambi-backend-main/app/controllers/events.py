@@ -320,91 +320,202 @@ def getAnalysis(id: int, eventType: str):
   }
 
 def createExternalEvent():
-  accountSessionInfo = g.get("accountSessionInfo")
-  createdSignatories = SignatoriesDb.create(
-    approvedBy="NAME",
-    preparedBy="NAME",
-    recommendingApproval1="NAME",
-    recommendingApproval2="NAME",
-    reviewedBy="NAME"
-  )
+  import traceback
+  try:
+    accountSessionInfo = g.get("accountSessionInfo")
+    print(f"[CREATE_EXTERNAL_EVENT] Starting event creation for user {accountSessionInfo.get('id')}")
 
-  createdExternalEvent = ExternalEventDb.create(
-    request.json["extensionServiceType"],
-    request.json["title"],
-    request.json["location"],
-    request.json["durationStart"],
-    request.json["durationEnd"],
-    request.json["sdg"],
-    request.json["orgInvolved"],
-    request.json["programInvolved"],
-    request.json["projectLeader"],
-    request.json["partners"],
-    request.json["beneficiaries"],
-    request.json["totalCost"],
-    request.json["sourceOfFund"],
-    request.json["rationale"],
-    request.json["objectives"],
-    request.json["expectedOutput"],
-    request.json["description"],
-    request.json["financialPlan"],
-    request.json["dutiesOfPartner"],
-    request.json["evaluationMechanicsPlan"],
-    request.json["sustainabilityPlan"],
-    accountSessionInfo["id"],
-    "editing",
-    request.json["evaluationSendTime"],
-    signatoriesId=createdSignatories["id"],
-    externalServiceType=request.json["externalServiceType"] or "[]",
-    eventProposalType=request.json["eventProposalType"] or "[]"
-  )
+    # Create signatories first
+    print("[CREATE_EXTERNAL_EVENT] Creating signatories...")
+    try:
+      createdSignatories = SignatoriesDb.create(
+        approvedBy="NAME",
+        preparedBy="NAME",
+        recommendingApproval1="NAME",
+        recommendingApproval2="NAME",
+        reviewedBy="NAME"
+      )
+      print(f"[CREATE_EXTERNAL_EVENT] Signatories created with ID: {createdSignatories.get('id')}")
+    except Exception as e:
+      print(f"[CREATE_EXTERNAL_EVENT] ERROR creating signatories: {str(e)}")
+      traceback.print_exc()
+      return ({
+        "message": "Failed to create signatories",
+        "error": str(e)
+      }, 500)
 
-  return {
-    "data": createdExternalEvent,
-    "message": "Successfully created a new external event!"
-  }
+    # Validate required fields
+    required_fields = [
+      "extensionServiceType", "title", "location", "durationStart", "durationEnd",
+      "sdg", "orgInvolved", "programInvolved", "projectLeader", "partners",
+      "beneficiaries", "totalCost", "sourceOfFund", "rationale", "objectives",
+      "expectedOutput", "description", "financialPlan", "dutiesOfPartner",
+      "evaluationMechanicsPlan", "sustainabilityPlan", "evaluationSendTime"
+    ]
+    
+    missing_fields = [field for field in required_fields if field not in request.json]
+    if missing_fields:
+      print(f"[CREATE_EXTERNAL_EVENT] Missing required fields: {missing_fields}")
+      return ({
+        "message": f"Missing required fields: {', '.join(missing_fields)}",
+        "missingFields": missing_fields
+      }, 400)
+
+    print("[CREATE_EXTERNAL_EVENT] Creating external event...")
+    print(f"[CREATE_EXTERNAL_EVENT] Event data - title: {request.json.get('title')}, location: {request.json.get('location')}")
+    
+    try:
+      createdExternalEvent = ExternalEventDb.create(
+        request.json["extensionServiceType"],
+        request.json["title"],
+        request.json["location"],
+        request.json["durationStart"],
+        request.json["durationEnd"],
+        request.json["sdg"],
+        request.json["orgInvolved"],
+        request.json["programInvolved"],
+        request.json["projectLeader"],
+        request.json["partners"],
+        request.json["beneficiaries"],
+        request.json["totalCost"],
+        request.json["sourceOfFund"],
+        request.json["rationale"],
+        request.json["objectives"],
+        request.json["expectedOutput"],
+        request.json["description"],
+        request.json["financialPlan"],
+        request.json["dutiesOfPartner"],
+        request.json["evaluationMechanicsPlan"],
+        request.json["sustainabilityPlan"],
+        accountSessionInfo["id"],
+        "editing",
+        request.json["evaluationSendTime"],
+        signatoriesId=createdSignatories["id"],
+        externalServiceType=request.json["externalServiceType"] or "[]",
+        eventProposalType=request.json["eventProposalType"] or "[]"
+      )
+      print(f"[CREATE_EXTERNAL_EVENT] Event created successfully with ID: {createdExternalEvent.get('id')}")
+      
+      return {
+        "data": createdExternalEvent,
+        "message": "Successfully created a new external event!"
+      }
+    except Exception as e:
+      print(f"[CREATE_EXTERNAL_EVENT] ERROR creating event: {str(e)}")
+      print(f"[CREATE_EXTERNAL_EVENT] Error type: {type(e).__name__}")
+      traceback.print_exc()
+      return ({
+        "message": "Failed to create external event",
+        "error": str(e),
+        "errorType": type(e).__name__
+      }, 500)
+      
+  except Exception as e:
+    print(f"[CREATE_EXTERNAL_EVENT] FATAL ERROR: {str(e)}")
+    print(f"[CREATE_EXTERNAL_EVENT] Error type: {type(e).__name__}")
+    traceback.print_exc()
+    return ({
+      "message": "Internal server error while creating event",
+      "error": str(e),
+      "errorType": type(e).__name__
+    }, 500)
 
 def createInternalEvent():
-  accountSessionInfo = g.get("accountSessionInfo")
+  import traceback
+  try:
+    accountSessionInfo = g.get("accountSessionInfo")
+    print(f"[CREATE_INTERNAL_EVENT] Starting event creation for user {accountSessionInfo.get('id')}")
 
-  createdSignatories = SignatoriesDb.create(
-    approvedBy="NAME",
-    preparedBy="NAME",
-    recommendingApproval1="NAME",
-    recommendingApproval2="NAME",
-    reviewedBy="NAME"
-  )
+    # Create signatories first
+    print("[CREATE_INTERNAL_EVENT] Creating signatories...")
+    try:
+      createdSignatories = SignatoriesDb.create(
+        approvedBy="NAME",
+        preparedBy="NAME",
+        recommendingApproval1="NAME",
+        recommendingApproval2="NAME",
+        reviewedBy="NAME"
+      )
+      print(f"[CREATE_INTERNAL_EVENT] Signatories created with ID: {createdSignatories.get('id')}")
+    except Exception as e:
+      print(f"[CREATE_INTERNAL_EVENT] ERROR creating signatories: {str(e)}")
+      import traceback
+      traceback.print_exc()
+      return ({
+        "message": "Failed to create signatories",
+        "error": str(e)
+      }, 500)
 
-  createdInternalEvent = InternalEventDb.create(
-    request.json["title"],
-    request.json["durationStart"],
-    request.json["durationEnd"],
-    request.json["venue"],
-    request.json["modeOfDelivery"],
-    request.json["projectTeam"],
-    request.json["partner"],
-    request.json["participant"],
-    request.json["maleTotal"],
-    request.json["femaleTotal"],
-    request.json["rationale"],
-    request.json["objectives"],
-    request.json["description"],
-    request.json["workPlan"],
-    request.json["financialRequirement"],
-    request.json["evaluationMechanicsPlan"],
-    request.json["sustainabilityPlan"],
-    accountSessionInfo["id"],
-    "editing",
-    False,
-    request.json["evaluationSendTime"],
-    createdSignatories["id"],
-    eventProposalType=request.json.get("eventProposalType") or "[]"
-  )
+    # Validate required fields
+    required_fields = [
+      "title", "durationStart", "durationEnd", "venue", "modeOfDelivery",
+      "projectTeam", "partner", "participant", "maleTotal", "femaleTotal",
+      "rationale", "objectives", "description", "workPlan", "financialRequirement",
+      "evaluationMechanicsPlan", "sustainabilityPlan", "evaluationSendTime"
+    ]
+    
+    missing_fields = [field for field in required_fields if field not in request.json]
+    if missing_fields:
+      print(f"[CREATE_INTERNAL_EVENT] Missing required fields: {missing_fields}")
+      return ({
+        "message": f"Missing required fields: {', '.join(missing_fields)}",
+        "missingFields": missing_fields
+      }, 400)
 
-  return {
-    "data": createdInternalEvent,
-    "message": "Successfully created a new external event!"
-  }
+    print("[CREATE_INTERNAL_EVENT] Creating internal event...")
+    print(f"[CREATE_INTERNAL_EVENT] Event data - title: {request.json.get('title')}, venue: {request.json.get('venue')}")
+    
+    try:
+      createdInternalEvent = InternalEventDb.create(
+        request.json["title"],
+        request.json["durationStart"],
+        request.json["durationEnd"],
+        request.json["venue"],
+        request.json["modeOfDelivery"],
+        request.json["projectTeam"],
+        request.json["partner"],
+        request.json["participant"],
+        request.json["maleTotal"],
+        request.json["femaleTotal"],
+        request.json["rationale"],
+        request.json["objectives"],
+        request.json["description"],
+        request.json["workPlan"],
+        request.json["financialRequirement"],
+        request.json["evaluationMechanicsPlan"],
+        request.json["sustainabilityPlan"],
+        accountSessionInfo["id"],
+        "editing",
+        False,
+        request.json["evaluationSendTime"],
+        createdSignatories["id"],
+        eventProposalType=request.json.get("eventProposalType") or "[]"
+      )
+      print(f"[CREATE_INTERNAL_EVENT] Event created successfully with ID: {createdInternalEvent.get('id')}")
+      
+      return {
+        "data": createdInternalEvent,
+        "message": "Successfully created a new internal event!"
+      }
+    except Exception as e:
+      print(f"[CREATE_INTERNAL_EVENT] ERROR creating event: {str(e)}")
+      print(f"[CREATE_INTERNAL_EVENT] Error type: {type(e).__name__}")
+      traceback.print_exc()
+      return ({
+        "message": "Failed to create internal event",
+        "error": str(e),
+        "errorType": type(e).__name__
+      }, 500)
+      
+  except Exception as e:
+    print(f"[CREATE_INTERNAL_EVENT] FATAL ERROR: {str(e)}")
+    print(f"[CREATE_INTERNAL_EVENT] Error type: {type(e).__name__}")
+    traceback.print_exc()
+    return ({
+      "message": "Internal server error while creating event",
+      "error": str(e),
+      "errorType": type(e).__name__
+    }, 500)
 
 def editExternalEventStatus(id, status: str):
   accountSessionInfo = g.get("accountSessionInfo")
