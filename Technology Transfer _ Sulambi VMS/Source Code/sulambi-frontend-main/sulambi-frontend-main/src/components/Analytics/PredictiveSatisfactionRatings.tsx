@@ -159,10 +159,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   // Process satisfaction data when response changes
   useEffect(() => {
+    // Early return if no year selected - let the initialization useEffect handle it
     if (!selectedYear) {
-      // Set default year on first load
-      const currentYear = new Date().getFullYear();
-      setSelectedYear(String(currentYear));
       return;
     }
 
@@ -267,9 +265,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
               .map((y) => String(y));
             
             setAvailableYears(allYears.length > 0 ? allYears : [String(currentYear)]);
-            const fallbackYear = String(currentYear);
-            const chosen = yearsRaw.length > 0 ? yearsRaw[yearsRaw.length - 1] : fallbackYear;
-            setSelectedYear((prev) => (prev ? prev : String(chosen)));
+            // Don't change selectedYear if user already selected one - this was causing infinite loops
           } else {
             // No data available - show empty state but keep years available
             setSatisfactionData([]);
