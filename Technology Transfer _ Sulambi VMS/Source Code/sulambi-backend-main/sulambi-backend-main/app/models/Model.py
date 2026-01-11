@@ -208,30 +208,59 @@ class Model:
 
   # creates a new data with the provided columns and data value
   def create(self, data: tuple, includePrimaryKey=False):
-    conn, cursor = connection.cursorInstance()
+    import traceback
+    try:
+      conn, cursor = connection.cursorInstance()
 
-    if (includePrimaryKey):
-      columns_to_use = [self.primaryKey] + self.columns
-      queryFormatter = ", ".join('?' * (len(self.columns) + 1))
-    else:
-      columns_to_use = self.columns
-      queryFormatter = ", ".join('?' * len(self.columns))
+      if (includePrimaryKey):
+        columns_to_use = [self.primaryKey] + self.columns
+        queryFormatter = ", ".join('?' * (len(self.columns) + 1))
+      else:
+        columns_to_use = self.columns
+        queryFormatter = ", ".join('?' * len(self.columns))
 
-    # Don't quote column names - they're lowercase in PostgreSQL (created without quotes)
-    columnFormatter = ", ".join(columns_to_use)
+      # Don't quote column names - they're lowercase in PostgreSQL (created without quotes)
+      columnFormatter = ", ".join(columns_to_use)
 
-    table_name = self._get_table_name()
-    query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter})"
-    query = connection.convert_placeholders(query)
-    print(query)
-    cursor.execute(query, data)
-    conn.commit()
+      table_name = self._get_table_name()
+      query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter})"
+      query = connection.convert_placeholders(query)
+      
+      print(f"[MODEL.CREATE] Table: {table_name}")
+      print(f"[MODEL.CREATE] Columns ({len(columns_to_use)}): {', '.join(columns_to_use[:5])}{'...' if len(columns_to_use) > 5 else ''}")
+      print(f"[MODEL.CREATE] Data tuple length: {len(data)}")
+      print(f"[MODEL.CREATE] Query: {query[:200]}{'...' if len(query) > 200 else ''}")
+      
+      if len(data) != len(columns_to_use):
+        error_msg = f"Data tuple length ({len(data)}) does not match columns ({len(columns_to_use)})"
+        print(f"[MODEL.CREATE] ERROR: {error_msg}")
+        print(f"[MODEL.CREATE] Columns: {columns_to_use}")
+        print(f"[MODEL.CREATE] Data: {data}")
+        conn.close()
+        raise ValueError(error_msg)
+      
+      cursor.execute(query, data)
+      conn.commit()
+      print(f"[MODEL.CREATE] Insert successful")
+      
+      lastRowId = self.getLastPrimaryKey()
+      insertedData = self.get(lastRowId)
 
-    lastRowId = self.getLastPrimaryKey()
-    insertedData = self.get(lastRowId)
-
-    conn.close()
-    return insertedData
+      conn.close()
+      return insertedData
+    except Exception as e:
+      print(f"[MODEL.CREATE] ERROR: {str(e)}")
+      print(f"[MODEL.CREATE] Error type: {type(e).__name__}")
+      print(f"[MODEL.CREATE] Table: {self.table}")
+      if 'query' in locals():
+        print(f"[MODEL.CREATE] Query was: {query[:500]}")
+      if 'data' in locals():
+        print(f"[MODEL.CREATE] Data length: {len(data)}")
+        print(f"[MODEL.CREATE] Data sample: {str(data)[:200]}")
+      traceback.print_exc()
+      if 'conn' in locals():
+        conn.close()
+      raise
 
   # updates the data with the given primary key
   def update(self, key, data: tuple):
