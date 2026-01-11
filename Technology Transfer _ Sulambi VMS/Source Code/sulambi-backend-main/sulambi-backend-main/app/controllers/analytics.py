@@ -801,9 +801,19 @@ def getSatisfactionAnalytics(year=None):
             from ..database.connection import quote_identifier
             semester_satisfaction_table = quote_identifier('semester_satisfaction')
             from ..database.connection import convert_placeholders
+            # Import here to avoid circular imports
+            from ..database.connection import DATABASE_URL
+            is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+            
+            # Quote mixed-case column names for PostgreSQL
+            if is_postgresql:
+                topIssues_col = '"topIssues"'
+            else:
+                topIssues_col = 'topIssues'
+            
             if year:
                 query = f"""
-                    SELECT year, semester, overall, volunteers, beneficiaries, topIssues
+                    SELECT year, semester, overall, volunteers, beneficiaries, {topIssues_col}
                     FROM {semester_satisfaction_table}
                     WHERE year=?
                     ORDER BY semester ASC
@@ -811,11 +821,12 @@ def getSatisfactionAnalytics(year=None):
                 query = convert_placeholders(query)
                 cursor.execute(query, (int(year),))
             else:
-                cursor.execute(f"""
-                    SELECT year, semester, overall, volunteers, beneficiaries, topIssues
+                query = f"""
+                    SELECT year, semester, overall, volunteers, beneficiaries, {topIssues_col}
                     FROM {semester_satisfaction_table}
                     ORDER BY year ASC, semester ASC
-                """)
+                """
+                cursor.execute(query)
             rows = cursor.fetchall()
             conn.close()
             if rows and len(rows) > 0:
@@ -1068,16 +1079,22 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         event_title, event_start, event_end = event_row
         
         # Get satisfaction surveys for this specific event (primary source)
-        from ..database.connection import quote_identifier
+        from ..database.connection import quote_identifier, DATABASE_URL
         satisfaction_surveys_table = quote_identifier('satisfactionSurveys')
         evaluation_table = quote_identifier('evaluation')
         requirements_table = quote_identifier('requirements')
         from ..database.connection import convert_placeholders
+        is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+        
+        # Use boolean true/false for PostgreSQL, 1/0 for SQLite
+        finalized_condition1 = "finalized = true" if is_postgresql else "finalized = 1"
+        finalized_condition2 = "e.finalized = true" if is_postgresql else "e.finalized = 1"
+        
         query1 = f"""
             SELECT id, respondentType, overallSatisfaction, volunteerRating, beneficiaryRating,
                    q13, q14, comment, recommendations, finalized
             FROM {satisfaction_surveys_table}
-            WHERE eventId = ? AND eventType = ? AND finalized = 1
+            WHERE "eventId" = ? AND "eventType" = ? AND {finalized_condition1}
         """
         query1 = convert_placeholders(query1)
         cursor.execute(query1, (eventId, eventType))
@@ -1086,11 +1103,11 @@ def getEventSatisfactionAnalytics(eventId: int, eventType: str):
         
         # Also get evaluations as fallback (for backward compatibility)
         query2 = f"""
-            SELECT e.id, e.requirementId, e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
-                   r.eventId, r.type
+            SELECT e.id, e."requirementid", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
+                   r."eventid", r.type
             FROM {evaluation_table} e
-            INNER JOIN {requirements_table} r ON e.requirementId = r.id
-            WHERE r.eventId = ? AND r.type = ? AND e.finalized = 1 AND e.criteria IS NOT NULL AND e.criteria != ''
+            INNER JOIN {requirements_table} r ON e."requirementid" = r.id
+            WHERE r."eventid" = ? AND r.type = ? AND {finalized_condition2} AND e.criteria IS NOT NULL AND e.criteria != ''
         """
         query2 = convert_placeholders(query2)
         cursor.execute(query2, (eventId, eventType))
