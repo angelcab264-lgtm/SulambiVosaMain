@@ -21,17 +21,26 @@ class AccountModel(Model):
     conn, cursor = connection.cursorInstance()
     
     table_name = self._get_table_name()
-    # Convert boolean value for database compatibility
-    from ..database.connection import convert_boolean_value
-    active_value = convert_boolean_value(True)
+    
+    # For PostgreSQL, use boolean literal in query; for SQLite use integer
+    # psycopg2 handles Python True/False correctly, so we can use Python boolean
+    # But we need to ensure the query uses proper boolean comparison
+    from ..database.connection import DATABASE_URL
+    is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+    
+    if is_postgresql:
+      # PostgreSQL: use boolean True directly (psycopg2 handles it)
+      active_value = True
+    else:
+      # SQLite: use integer 1
+      active_value = 1
     
     query = f"SELECT {','.join([self.primaryKey] + self.columns)} FROM {table_name} WHERE username=? AND password=? AND active=?"
     # Convert placeholders for PostgreSQL
     query = connection.convert_placeholders(query)
-    # Convert boolean conditions for PostgreSQL
-    query = connection.convert_boolean_condition(query)
     print(f"[AUTH_MODEL] Executing query: SELECT ... FROM {table_name} WHERE username=? AND password=? AND active=?")
-    print(f"[AUTH_MODEL] Query parameters: username={username}, password={'*' * len(password)}, active={active_value}")
+    print(f"[AUTH_MODEL] Query: {query}")
+    print(f"[AUTH_MODEL] Query parameters: username={username}, password={'*' * len(password)}, active={active_value} (type: {type(active_value).__name__})")
     
     cursor.execute(query, (username, password, active_value))
     result = cursor.fetchone()
