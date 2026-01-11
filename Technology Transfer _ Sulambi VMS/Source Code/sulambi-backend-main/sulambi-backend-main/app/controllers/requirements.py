@@ -180,6 +180,17 @@ def createNewRequirement(eventId: int):
         return ({ "message": "Your email has already been registered to this event" }, 403)
 
     print("[REQUIREMENTS_CREATE] Creating requirement in database...")
+    
+    # Convert empty strings to None for integer fields (PostgreSQL requirement)
+    # age column in requirements table is INTEGER (nullable), so empty strings must be None
+    age_str = request.form.get("age") or ""
+    age_value = None
+    if age_str and age_str.strip():
+      try:
+        age_value = int(age_str.strip())
+      except ValueError:
+        age_value = None
+    
     createdRequirement = RequirementsDb.create(
       resultingPaths.get("medCert") or "",
       resultingPaths.get("waiver") or "",
@@ -194,7 +205,7 @@ def createNewRequirement(eventId: int):
       request.form.get("fullname") or "",
       request.form.get("email") or "",
       request.form.get("srcode") or "",
-      request.form.get("age") or "",
+      age_value,  # This will be an integer or None, not a string
       request.form.get("birthday") or "",
       request.form.get("sex") or "",
       request.form.get("campus") or "",

@@ -54,7 +54,7 @@ class RequirementsModel(Model):
 
       # personal info
       fullname: str,
-      email: str, srcode: str, age: str,
+      email: str, srcode: str, age: int | None,  # Changed from str to int | None for PostgreSQL INTEGER column
       birthday: str, sex: str, campus: str,
       collegeDept: str, yrlevelprogram: str,
       address: str, contactNum: str, fblink: str,
@@ -72,7 +72,7 @@ class RequirementsModel(Model):
       firstAid, fees,
       personnelInCharge,
       personnelRole, fullname,
-      email, srcode, age,
+      email, srcode, age,  # This is now int | None, which PostgreSQL can handle
       birthday, sex, campus,
       collegeDept, yrlevelprogram,
       address, contactNum, fblink,
