@@ -118,9 +118,11 @@ class Model:
   # gets a single data through the use of the primary key
   def get(self, key):
     conn, cursor = connection.cursorInstance()
-    columnQuery = ", ".join([self.primaryKey] + self.columns)
+    columns_list = [self.primaryKey] + self.columns
+    columnQuery = ", ".join([self._quote_identifier(col) for col in columns_list])
     table_name = self._get_table_name()
-    query = f"SELECT {columnQuery} FROM {table_name} WHERE {self.primaryKey}=?"
+    primary_key_quoted = self._quote_identifier(self.primaryKey)
+    query = f"SELECT {columnQuery} FROM {table_name} WHERE {primary_key_quoted}=?"
     query = connection.convert_placeholders(query)
 
     cursor.execute(query, (key, ))
@@ -133,7 +135,8 @@ class Model:
   # returns all the data in the table
   def getAll(self):
     conn, cursor = connection.cursorInstance()
-    columnQuery = ", ".join([self.primaryKey] + self.columns)
+    columns_list = [self.primaryKey] + self.columns
+    columnQuery = ", ".join([self._quote_identifier(col) for col in columns_list])
     table_name = self._get_table_name()
 
     query = f"SELECT {columnQuery} FROM {table_name}"
@@ -148,7 +151,8 @@ class Model:
   # gets a specific value by matching its column values
   def getOrSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
-    columnQuery = ", ".join([self.primaryKey] + self.columns)
+    columns_list = [self.primaryKey] + self.columns
+    columnQuery = ", ".join([self._quote_identifier(col) for col in columns_list])
     table_name = self._get_table_name()
 
     # Build query with proper NULL handling - only include non-None values
@@ -156,7 +160,8 @@ class Model:
     params = []
     for col, val in zip(columns, values):
       if val is not None:
-        conditions.append(f"{col}=?")
+        col_quoted = self._quote_identifier(col)
+        conditions.append(f"{col_quoted}=?")
         params.append(val)
     
     # If no conditions, return all records
@@ -181,10 +186,11 @@ class Model:
   # gets a specific value by matching its column values
   def getAndSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
-    columnQuery = ", ".join([self.primaryKey] + self.columns)
+    columns_list = [self.primaryKey] + self.columns
+    columnQuery = ", ".join([self._quote_identifier(col) for col in columns_list])
     table_name = self._get_table_name()
 
-    queryFormatter = [f"{col}=?" for col in columns]
+    queryFormatter = [f"{self._quote_identifier(col)}=?" for col in columns]
     queryFormatter = " AND ".join(queryFormatter)
     query = f"SELECT {columnQuery} FROM {table_name} WHERE {queryFormatter}"
     query = connection.convert_placeholders(query)
@@ -258,7 +264,8 @@ class Model:
     tmpDeleted = self.get(key)
 
     table_name = self._get_table_name()
-    query = f"DELETE FROM {table_name} WHERE {self.primaryKey}=?"
+    primary_key_quoted = self._quote_identifier(self.primaryKey)
+    query = f"DELETE FROM {table_name} WHERE {primary_key_quoted}=?"
     query = connection.convert_placeholders(query)
     cursor.execute(query, (key,))
     conn.commit()
