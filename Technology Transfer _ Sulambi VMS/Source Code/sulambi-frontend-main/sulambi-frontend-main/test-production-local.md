@@ -51,27 +51,58 @@ npm run serve:local
 
 By default, the build uses your `.env` file or the `VITE_API_URI` environment variable.
 
-**To test with a specific API URL:**
+### Test with Local Backend (localhost)
 
 **Windows (PowerShell):**
 ```powershell
-$env:VITE_API_URI="http://localhost:8000/api"; npm run test:production
+cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
+$env:VITE_API_URI="http://localhost:8000/api"
+npm run test:production
 ```
 
 **Windows (Command Prompt):**
 ```cmd
-set VITE_API_URI=http://localhost:8000/api && npm run test:production
+cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
+set VITE_API_URI=http://localhost:8000/api
+npm run test:production
 ```
 
 **Linux/Mac:**
 ```bash
+cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
 VITE_API_URI=http://localhost:8000/api npm run test:production
 ```
 
-**To test with your Render backend:**
+### Test with Render Backend (Production Database) ⭐ Recommended
+
+**This is what you want!** Run the frontend locally but use your Render backend (and database):
+
+**Windows (PowerShell):**
 ```powershell
-$env:VITE_API_URI="https://sulambi-backend1.onrender.com/api"; npm run test:production
+cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
+$env:VITE_API_URI="https://sulambi-backend1.onrender.com/api"
+npm run test:production
 ```
+
+**Windows (Command Prompt):**
+```cmd
+cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
+set VITE_API_URI=https://sulambi-backend1.onrender.com/api
+npm run test:production
+```
+
+**Linux/Mac:**
+```bash
+cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
+VITE_API_URI=https://sulambi-backend1.onrender.com/api npm run test:production
+```
+
+**Benefits of testing with Render backend:**
+- ✅ Uses your production database (real data)
+- ✅ Tests against the actual backend API
+- ✅ No need to run backend locally
+- ✅ Faster testing (frontend builds locally, backend is already running)
+- ✅ More accurate production testing
 
 ## What's Different from Dev Mode?
 
@@ -111,9 +142,34 @@ Press `Ctrl+C` in the terminal to stop the server.
 
 ## Workflow Recommendation
 
-1. **During development**: Use `npm run dev` (fast hot reload)
-2. **Before deploying**: Use `npm run test:production` (test production build)
-3. **After deploying**: Test on Render (final verification)
+1. **During development**: 
+   - Use `npm run dev` (fast hot reload)
+   - Connect to Render backend: `$env:VITE_API_URI="https://sulambi-backend1.onrender.com/api"; npm run dev`
+
+2. **Before deploying (recommended)**: 
+   - Test production build with Render backend: `$env:VITE_API_URI="https://sulambi-backend1.onrender.com/api"; npm run test:production`
+   - This tests your production build against your production database
+
+3. **After deploying**: 
+   - Test on Render (final verification)
 
 This way you catch production issues before deploying! 🚀
+
+## Common Scenarios
+
+### Scenario 1: Test frontend changes with production data
+```powershell
+cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
+$env:VITE_API_URI="https://sulambi-backend1.onrender.com/api"
+npm run test:production
+```
+**Use case:** You changed the frontend UI and want to see how it looks with real production data.
+
+### Scenario 2: Test with local backend (requires backend running)
+```powershell
+cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
+$env:VITE_API_URI="http://localhost:8000/api"
+npm run test:production
+```
+**Use case:** You're also developing backend changes and want to test both locally.
 
