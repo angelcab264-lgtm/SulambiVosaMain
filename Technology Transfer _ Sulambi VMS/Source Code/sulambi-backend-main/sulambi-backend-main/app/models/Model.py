@@ -268,26 +268,17 @@ class Model:
           conn.rollback()
           print(f"[MODEL.CREATE] Transaction rolled back")
           
-          # Get sequence name using pg_get_serial_sequence (more reliable)
-          try:
-            sequence_query = "SELECT pg_get_serial_sequence(%s, %s)"
-            cursor.execute(sequence_query, (self.table, self.primaryKey))
-            seq_result = cursor.fetchone()
-            if seq_result and seq_result[0]:
-              sequence_name = seq_result[0].strip('"')
-              print(f"[MODEL.CREATE] Found sequence: {sequence_name}")
-            else:
-              # Fallback: assume standard naming convention
-              sequence_name = f"{self.table}_{self.primaryKey}_seq"
-              print(f"[MODEL.CREATE] Using fallback sequence name: {sequence_name}")
-          except Exception as seq_error:
-            print(f"[MODEL.CREATE] Could not get sequence name: {seq_error}, using fallback")
-            # Fallback: assume standard naming convention
-            sequence_name = f"{self.table}_{self.primaryKey}_seq"
+          # Get sequence name - use the standard naming convention (more reliable than pg_get_serial_sequence with quoted names)
+          # PostgreSQL sequences for SERIAL columns follow the pattern: {table}_{column}_seq
+          # But since table name is quoted, we need to handle it correctly
+          sequence_name = f"{self.table}_{self.primaryKey}_seq"
+          print(f"[MODEL.CREATE] Using sequence name: {sequence_name}")
           
           # Reset sequence to max(id) + 1
-          fix_query = f"SELECT setval(%s, COALESCE((SELECT MAX({self.primaryKey}) FROM {table_name}), 0) + 1, false)"
-          cursor.execute(fix_query, (sequence_name,))
+          # Use quoted sequence name and table name
+          quoted_sequence = f'"{sequence_name}"'
+          fix_query = f"SELECT setval({quoted_sequence}, COALESCE((SELECT MAX({self.primaryKey}) FROM {table_name}), 0) + 1, false)"
+          cursor.execute(fix_query)
           conn.commit()
           print(f"[MODEL.CREATE] Sequence {sequence_name} reset. Retrying insert...")
           
