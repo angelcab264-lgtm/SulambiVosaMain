@@ -174,8 +174,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         const responseData = satisfactionResponse?.data || satisfactionResponse;
         
         if (responseData?.success && responseData?.data) {
-          const raw = response.data.satisfactionData || [];
-          let issues = response.data.topIssues || [];
+          const raw = responseData.data.satisfactionData || [];
+          let issues = responseData.data.topIssues || [];
           
           // Only set data if we have real data
           if (raw.length > 0) {
@@ -311,9 +311,18 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         setAverageScore(0);
         setVolunteerScore(0);
         setBeneficiaryScore(0);
+        
+        // Keep all years 2020-2026 available even if no data
         const currentYear = new Date().getFullYear();
-        setAvailableYears([String(currentYear)]);
-        setSelectedYear(String(currentYear));
+        const years = [];
+        for (let year = 2020; year <= Math.max(currentYear, 2026); year++) {
+          years.push(String(year));
+        }
+        setAvailableYears(years.length > 0 ? years : [String(currentYear)]);
+        // Don't change selected year if user already selected one
+        if (!selectedYear) {
+          setSelectedYear(String(currentYear));
+        }
         // Don't set error - this is expected when there's no evaluation data
         setError(null);
       } else {
