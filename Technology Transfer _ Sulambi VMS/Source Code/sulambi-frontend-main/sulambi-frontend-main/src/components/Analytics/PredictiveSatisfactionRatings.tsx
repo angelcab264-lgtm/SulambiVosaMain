@@ -282,8 +282,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
               setSelectedYear(String(currentYear));
             }
           }
-        } else {
-          // API unsuccessful - show empty state but keep years available
+        } else if (responseData) {
+          // Response exists but no data - backend returned empty (could be 500 handled gracefully)
           setSatisfactionData([]);
           setTopIssues([]);
           setAverageScore(0);
@@ -303,38 +303,16 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           }
           // Don't set error - this is expected when there's no evaluation data
           setError(null);
+        } else {
+          // No response yet - still loading or no data
+          // Keep existing state, don't clear data while loading
+          // setSatisfactionData([]);
+          // setTopIssues([]);
+          // setAverageScore(0);
+          // setVolunteerScore(0);
+          // setBeneficiaryScore(0);
+          // Don't set error during loading
         }
-      } else if (responseData) {
-        // Response exists but no data - backend returned empty (could be 500 handled gracefully)
-        setSatisfactionData([]);
-        setTopIssues([]);
-        setAverageScore(0);
-        setVolunteerScore(0);
-        setBeneficiaryScore(0);
-        
-        // Keep all years 2020-2026 available even if no data
-        const currentYear = new Date().getFullYear();
-        const years = [];
-        for (let year = 2020; year <= Math.max(currentYear, 2026); year++) {
-          years.push(String(year));
-        }
-        setAvailableYears(years.length > 0 ? years : [String(currentYear)]);
-        // Don't change selected year if user already selected one
-        if (!selectedYear) {
-          setSelectedYear(String(currentYear));
-        }
-        // Don't set error - this is expected when there's no evaluation data
-        setError(null);
-      } else {
-        // No response yet - still loading or no data
-        // Keep existing state, don't clear data while loading
-        // setSatisfactionData([]);
-        // setTopIssues([]);
-        // setAverageScore(0);
-        // setVolunteerScore(0);
-        // setBeneficiaryScore(0);
-        // Don't set error during loading
-      }
       } catch (err) {
         console.error('Error processing satisfaction data:', err);
         setSatisfactionData([]);
