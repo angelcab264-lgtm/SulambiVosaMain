@@ -268,23 +268,31 @@ class Model:
           conn.rollback()
           print(f"[MODEL.CREATE] Transaction rolled back")
           
-          # Get sequence name - use the standard naming convention
-          # PostgreSQL sequences for SERIAL columns follow the pattern: {table}_{column}_seq
-          # Since table names are quoted in our schema, sequence names should match
-          sequence_name = f'"{self.table}_{self.primaryKey}_seq"'
-          print(f"[MODEL.CREATE] Using sequence name: {sequence_name}")
+          # Use pg_get_serial_sequence to get the actual sequence name (handles quoted table names correctly)
+          # This is more reliable than assuming the naming convention
+          sequence_query = "SELECT pg_get_serial_sequence(%s, %s)"
+          cursor.execute(sequence_query, (table_name, self.primaryKey))
+          seq_result = cursor.fetchone()
           
-          # Reset sequence to max(id) + 1 using ALTER SEQUENCE (more reliable with quoted names)
+          if seq_result and seq_result[0]:
+            sequence_name = seq_result[0]  # Already includes schema if needed
+            print(f"[MODEL.CREATE] Found sequence: {sequence_name}")
+          else:
+            # Fallback: try standard naming convention (quoted)
+            sequence_name = f'"{self.table}_{self.primaryKey}_seq"'
+            print(f"[MODEL.CREATE] Using fallback sequence name: {sequence_name}")
+          
+          # Get max ID from table
           max_id_query = f"SELECT COALESCE(MAX({self.primaryKey}), 0) + 1 FROM {table_name}"
           cursor.execute(max_id_query)
           max_id_result = cursor.fetchone()
           next_id = max_id_result[0] if max_id_result else 1
           
-          # Use ALTER SEQUENCE RESTART instead of setval for better compatibility with quoted names
-          fix_query = f'ALTER SEQUENCE {sequence_name} RESTART WITH {next_id}'
-          cursor.execute(fix_query)
+          # Use setval with the sequence name (regclass type - handles quoted names automatically)
+          # setval(sequence_name, value, is_called) - false means next value will be exactly 'value'
+          cursor.execute("SELECT setval(%s, %s, false)", (sequence_name, next_id))
           conn.commit()
-          print(f"[MODEL.CREATE] Sequence {sequence_name} reset. Retrying insert...")
+          print(f"[MODEL.CREATE] Sequence reset to {next_id}. Retrying insert...")
           
           # Retry the insert with RETURNING
           returning_query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter}) RETURNING {self.primaryKey}"
