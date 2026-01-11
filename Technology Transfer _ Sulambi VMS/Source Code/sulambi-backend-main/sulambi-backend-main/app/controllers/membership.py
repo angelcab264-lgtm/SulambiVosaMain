@@ -11,8 +11,15 @@ FRONTEND_APP_URL = os.getenv("FRONTEND_APP_URL")
 def getAllMembership():
   all_members = MembershipDb.getAll()
   print(f"[MEMBERSHIP API] Total members retrieved: {len(all_members)}")
+  
+  # Count members by status for debugging
+  pending_count = sum(1 for m in all_members if m.get('accepted') is None)
+  approved_count = sum(1 for m in all_members if m.get('accepted') is True or m.get('accepted') == 1)
+  rejected_count = sum(1 for m in all_members if m.get('accepted') is False or m.get('accepted') == 0)
+  print(f"[MEMBERSHIP API] Status breakdown - Pending: {pending_count}, Approved: {approved_count}, Rejected: {rejected_count}")
+  
   if len(all_members) > 0:
-    print(f"[MEMBERSHIP API] Sample member: {all_members[0].get('fullname', 'N/A')}")
+    print(f"[MEMBERSHIP API] Sample member: {all_members[0].get('fullname', 'N/A')}, accepted={all_members[0].get('accepted')}")
   return {
     "message": "Successfully retrieved membership data",
     "data": all_members

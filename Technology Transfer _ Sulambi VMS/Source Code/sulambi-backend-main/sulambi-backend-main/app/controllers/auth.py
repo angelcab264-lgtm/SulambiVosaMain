@@ -127,6 +127,7 @@ def register():
     }, 400)
 
   # register membership for approval
+  # Explicitly set accepted=None to ensure it's pending (NULL in database)
   createdMember = MembershipDb.create(
     address=address,
     age=age,
@@ -157,7 +158,13 @@ def register():
     weekendsTimeDevotion=weekendsTimeDevotion,
     yrlevelprogram=yrlevelprogram,
     volunteerExpProof=volunteerExpProof,
+    accepted=None,  # Explicitly set to None for pending status
+    active=True     # Set active to True by default
   )
+  
+  print(f"[AUTH_REGISTER] Member created with ID: {createdMember.get('id')}")
+  print(f"[AUTH_REGISTER] Member accepted status: {createdMember.get('accepted')} (should be None for pending)")
+  print(f"[AUTH_REGISTER] Member active status: {createdMember.get('active')}")
 
   # Send pending verification email
   sendPendingVerificationMail(createdMember)
