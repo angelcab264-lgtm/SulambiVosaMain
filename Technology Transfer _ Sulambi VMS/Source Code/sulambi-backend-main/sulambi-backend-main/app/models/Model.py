@@ -266,38 +266,41 @@ class Model:
       if is_postgresql and "duplicate key value violates unique constraint" in error_str and "_pkey" in error_str:
         print(f"[MODEL.CREATE] PostgreSQL sequence out of sync detected. Attempting to fix...")
         try:
-          # Extract table name from error or use self.table
+          conn.rollback()  # Rollback the failed transaction
+          
+          # Get sequence name using pg_get_serial_sequence (more reliable)
+          try:
+            sequence_query = f"SELECT pg_get_serial_sequence(%s, %s)"
+            cursor.execute(sequence_query, (self.table, self.primaryKey))
+            seq_result = cursor.fetchone()
+            if seq_result and seq_result[0]:
+              sequence_name = seq_result[0].strip('"')
+            else:
+              # Fallback: assume standard naming convention
+              sequence_name = f"{self.table}_{self.primaryKey}_seq"
+          except:
+            # Fallback: assume standard naming convention
+            sequence_name = f"{self.table}_{self.primaryKey}_seq"
+          
           # Reset sequence to max(id) + 1
-          sequence_name = f"{self.table}_id_seq"
-          fix_query = f"""
-            SELECT setval('{sequence_name}', 
-              COALESCE((SELECT MAX({self.primaryKey}) FROM {table_name}), 0) + 1, 
-              false);
-          """
-          cursor.execute(fix_query)
+          fix_query = f"SELECT setval(%s, COALESCE((SELECT MAX({self.primaryKey}) FROM {table_name}), 0) + 1, false)"
+          cursor.execute(fix_query, (sequence_name,))
           conn.commit()
           print(f"[MODEL.CREATE] Sequence {sequence_name} reset. Retrying insert...")
           
-          # Retry the insert
-          if is_postgresql:
-            returning_query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter}) RETURNING {self.primaryKey}"
-            returning_query = connection.convert_placeholders(returning_query)
-            cursor.execute(returning_query, data)
-            lastRowId = cursor.fetchone()[0]
-            conn.commit()
-            print(f"[MODEL.CREATE] Retry successful with ID: {lastRowId}")
-            insertedData = self.get(lastRowId)
-            conn.close()
-            return insertedData
-          else:
-            cursor.execute(query, data)
-            conn.commit()
-            lastRowId = self.getLastPrimaryKey()
-            insertedData = self.get(lastRowId)
-            conn.close()
-            return insertedData
+          # Retry the insert with RETURNING
+          returning_query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter}) RETURNING {self.primaryKey}"
+          returning_query = connection.convert_placeholders(returning_query)
+          cursor.execute(returning_query, data)
+          lastRowId = cursor.fetchone()[0]
+          conn.commit()
+          print(f"[MODEL.CREATE] Retry successful with ID: {lastRowId}")
+          insertedData = self.get(lastRowId)
+          conn.close()
+          return insertedData
         except Exception as retry_error:
           print(f"[MODEL.CREATE] Retry failed: {str(retry_error)}")
+          traceback.print_exc()
           conn.rollback()
           if 'conn' in locals():
             conn.close()
