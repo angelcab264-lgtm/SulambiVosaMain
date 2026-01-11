@@ -239,11 +239,8 @@ class Model:
         conn.close()
         raise ValueError(error_msg)
       
-      cursor.execute(query, data)
-      
-      # For PostgreSQL, get the ID using RETURNING or lastval()
+      # For PostgreSQL, use RETURNING from the start to get ID directly (avoids sequence issues)
       if is_postgresql:
-        # Use RETURNING to get the ID directly (avoids sequence issues)
         returning_query = f"INSERT INTO {table_name} ({columnFormatter}) VALUES ({queryFormatter}) RETURNING {self.primaryKey}"
         returning_query = connection.convert_placeholders(returning_query)
         cursor.execute(returning_query, data)
@@ -252,7 +249,8 @@ class Model:
         print(f"[MODEL.CREATE] Insert successful with ID: {lastRowId}")
         insertedData = self.get(lastRowId)
       else:
-        # SQLite: commit first, then get last row id
+        # SQLite: execute and get last row id
+        cursor.execute(query, data)
         conn.commit()
         print(f"[MODEL.CREATE] Insert successful")
         lastRowId = self.getLastPrimaryKey()
@@ -266,19 +264,24 @@ class Model:
       if is_postgresql and "duplicate key value violates unique constraint" in error_str and "_pkey" in error_str:
         print(f"[MODEL.CREATE] PostgreSQL sequence out of sync detected. Attempting to fix...")
         try:
-          conn.rollback()  # Rollback the failed transaction
+          # CRITICAL: Rollback FIRST before any other operations
+          conn.rollback()
+          print(f"[MODEL.CREATE] Transaction rolled back")
           
           # Get sequence name using pg_get_serial_sequence (more reliable)
           try:
-            sequence_query = f"SELECT pg_get_serial_sequence(%s, %s)"
+            sequence_query = "SELECT pg_get_serial_sequence(%s, %s)"
             cursor.execute(sequence_query, (self.table, self.primaryKey))
             seq_result = cursor.fetchone()
             if seq_result and seq_result[0]:
               sequence_name = seq_result[0].strip('"')
+              print(f"[MODEL.CREATE] Found sequence: {sequence_name}")
             else:
               # Fallback: assume standard naming convention
               sequence_name = f"{self.table}_{self.primaryKey}_seq"
-          except:
+              print(f"[MODEL.CREATE] Using fallback sequence name: {sequence_name}")
+          except Exception as seq_error:
+            print(f"[MODEL.CREATE] Could not get sequence name: {seq_error}, using fallback")
             # Fallback: assume standard naming convention
             sequence_name = f"{self.table}_{self.primaryKey}_seq"
           
@@ -301,7 +304,10 @@ class Model:
         except Exception as retry_error:
           print(f"[MODEL.CREATE] Retry failed: {str(retry_error)}")
           traceback.print_exc()
-          conn.rollback()
+          try:
+            conn.rollback()
+          except:
+            pass
           if 'conn' in locals():
             conn.close()
           raise
