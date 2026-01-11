@@ -9,9 +9,16 @@ class SessionModel(Model):
     self.primaryKey = "id"
     self.columns = ["token", "userid", "accountType"]
 
-  # overwrite search by token
-  def get(self, token: str) -> dict | None:
-    matches = super().getOrSearch([self.primaryKey] + self.columns, [None, token, None, None])
+  # overwrite search by token (or ID)
+  def get(self, token_or_id):
+    # SessionModel.get() can be called with either:
+    # 1. A token (string UUID) - for looking up by token
+    # 2. An ID (int) - for looking up by primary key (used by Model.create())
+    # If it's an integer, use the base class get() method (primary key lookup)
+    if isinstance(token_or_id, int):
+      return super().get(token_or_id)
+    # Otherwise, assume it's a token string and use getOrSearch
+    matches = super().getOrSearch([self.primaryKey] + self.columns, [None, token_or_id, None, None])
     if (len(matches)== 0):
       return None
     return matches[0]
