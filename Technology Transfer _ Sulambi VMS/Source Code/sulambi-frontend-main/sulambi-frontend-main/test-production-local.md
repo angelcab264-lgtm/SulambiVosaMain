@@ -4,19 +4,29 @@ This guide shows you how to test your production build locally, just like it run
 
 ## Quick Start
 
-1. **Build and run production server:**
-   ```bash
+**Important:** Make sure you're in the frontend directory first!
+
+1. **Navigate to the frontend directory:**
+   ```powershell
+   cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
+   ```
+
+2. **Build and run production server:**
+   ```powershell
    npm run test:production
    ```
 
-2. **Open your browser:**
+3. **Open your browser:**
    - Go to `http://localhost:10000`
    - Test your app like it's in production!
 
 ## Step by Step
 
 ### Option 1: Build and Serve in One Command (Recommended)
-```bash
+
+**From the frontend directory:**
+```powershell
+cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
 npm run test:production
 ```
 This will:
@@ -25,7 +35,11 @@ This will:
 - Serve your built app just like in production
 
 ### Option 2: Build and Serve Separately
-```bash
+
+**From the frontend directory:**
+```powershell
+cd "Technology Transfer _ Sulambi VMS/Source Code/sulambi-frontend-main/sulambi-frontend-main"
+
 # Step 1: Build the production version
 npm run build:local
 
