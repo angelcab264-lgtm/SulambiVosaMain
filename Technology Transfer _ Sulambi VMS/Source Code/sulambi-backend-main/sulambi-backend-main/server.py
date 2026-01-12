@@ -66,8 +66,12 @@ if __name__ == "__main__":
     exit()
 
   # Use environment variables for production, defaults for development
-  host = os.getenv("HOST", "localhost")
-  port = int(os.getenv("PORT", 8000))
+    # Use 0.0.0.0 for host so Railway can expose it
+    host = os.getenv("HOST", "0.0.0.0")
+    # Use Railway's assigned PORT or default to 8000 for local development
+    port = int(os.getenv("PORT", 8000))
+    
+    Server.run(host=host, port=port, debug=True)
   
   # Run Flask dev server (only in development)
   Server.run(host=host, port=port, debug=True)
