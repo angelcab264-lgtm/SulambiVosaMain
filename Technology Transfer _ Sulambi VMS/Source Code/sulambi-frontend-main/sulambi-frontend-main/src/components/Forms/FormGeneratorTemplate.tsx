@@ -559,9 +559,16 @@ const FormGeneratorTemplate = ({
                       if (isFullUrl) {
                         // Use Cloudinary URL or other full URL directly
                         fileSource = raw;
-                        // Check if URL ends with .pdf (case insensitive)
+                        // Check if URL ends with .pdf or contains pdf in path/query
                         const lower = raw.toLowerCase();
-                        isPdf = lower.includes(".pdf") || lower.includes("pdf");
+                        // More robust PDF detection: check extension, content-type hints, or Cloudinary format
+                        isPdf = 
+                          lower.endsWith(".pdf") || 
+                          lower.includes(".pdf?") ||
+                          lower.includes("/pdf/") ||
+                          lower.includes("format=pdf") ||
+                          lower.includes("fl_pdf") ||
+                          (lower.includes("pdf") && !lower.match(/\.(jpg|jpeg|png|gif|webp|svg)/));
                       } else {
                         // Handle local uploads
                         const base = (BASE_API_URL as string).replace("/api", "");
@@ -578,6 +585,13 @@ const FormGeneratorTemplate = ({
                         const lower = relative.toLowerCase();
                         isPdf = lower.endsWith(".pdf");
                       }
+                      
+                      console.log("[PDF_VIEWER] File detection:", {
+                        raw,
+                        fileSource,
+                        isPdf,
+                        isFullUrl
+                      });
 
                       setFileDetails({
                         source: fileSource,

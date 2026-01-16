@@ -23,7 +23,7 @@ import { FormDataContext } from "../../contexts/FormDataProvider";
 import CustomDropdown from "../../components/Inputs/CustomDropdown";
 import { useNavigate } from "react-router-dom";
 import LoadingSpinner from "../../components/Loading/LoadingSpinner";
-import { Typography } from "@mui/material";
+import { Typography, Box } from "@mui/material";
 
 const RequirementEvalPage = () => {
   const { showSnackbarMessage } = useContext(SnackbarContext);
@@ -32,6 +32,7 @@ const RequirementEvalPage = () => {
 
   const [searchStatus, setSearchStatus] = useState(3);
   const [searchVal, setSearchVal] = useState("");
+  const [debouncedSearchVal, setDebouncedSearchVal] = useState("");
   const [tableData, setTableData] = useState<any[]>([]);
   const [forceRefresh, setForceRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -61,6 +62,15 @@ const RequirementEvalPage = () => {
     
     console.log("✅ Authentication check passed:", { accountType, hasToken: !!token });
   }, [navigate, showSnackbarMessage]);
+
+  // Debounce search input to improve performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchVal(searchVal);
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timer);
+  }, [searchVal]);
 
   useEffect(() => {
     setLoading(true);
@@ -104,7 +114,7 @@ const RequirementEvalPage = () => {
           console.log("eventId value:", requirementsData[0].eventId);
           console.log("eventid value:", (requirementsData[0] as any).eventid);
         }
-        console.log("Current search filter:", { searchVal, searchStatus });
+        console.log("Current search filter:", { searchVal: debouncedSearchVal, searchStatus });
 
       const chipMap = {
         notEvaluated: (
@@ -158,21 +168,32 @@ const RequirementEvalPage = () => {
 
       const afterSearchFilter = normalizedData
           .filter((req) => {
-            // If searchVal is empty, show all items
-            if (!searchVal || searchVal.trim() === "") return true;
+            // Use debounced search value
+            if (!debouncedSearchVal || debouncedSearchVal.trim() === "") return true;
             
-            // Handle cases where eventId might be null or undefined
-            const eventTitle = req.eventId?.title || "Unknown Event";
-            const fullname = req.fullname || "";
-            const srcode = req.srcode || "";
-            const collegeDept = req.collegeDept || "";
-            const searchLower = searchVal.toLowerCase();
-            return (
-              eventTitle.toLowerCase().includes(searchLower) ||
-              fullname.toLowerCase().includes(searchLower) ||
-              srcode.toLowerCase().includes(searchLower) ||
-              collegeDept.toLowerCase().includes(searchLower)
-            );
+            const searchLower = debouncedSearchVal.toLowerCase().trim();
+            const searchTerms = searchLower.split(/\s+/).filter(term => term.length > 0);
+            
+            // If multiple search terms, all must match (AND logic)
+            if (searchTerms.length === 0) return true;
+            
+            // Build searchable text from all relevant fields
+            const eventTitle = (req.eventId?.title || "Unknown Event").toLowerCase();
+            const fullname = (req.fullname || "").toLowerCase();
+            const srcode = (req.srcode || "").toLowerCase();
+            const collegeDept = (req.collegeDept || "").toLowerCase();
+            const email = (req.email || "").toLowerCase();
+            const campus = (req.campus || "").toLowerCase();
+            const yrlevelprogram = (req.yrlevelprogram || "").toLowerCase();
+            const address = (req.address || "").toLowerCase();
+            const contactNum = (req.contactNum || "").toLowerCase();
+            const eventType = (req.type || "").toLowerCase();
+            
+            // Combine all searchable fields
+            const searchableText = `${eventTitle} ${fullname} ${srcode} ${collegeDept} ${email} ${campus} ${yrlevelprogram} ${address} ${contactNum} ${eventType}`;
+            
+            // Check if all search terms are found in the searchable text
+            return searchTerms.every(term => searchableText.includes(term));
           });
       
       console.log("After search filter:", afterSearchFilter.length, "requirements");
@@ -340,7 +361,7 @@ const RequirementEvalPage = () => {
         setTableData([]);
         setLoading(false);
       });
-  }, [forceRefresh, searchVal, searchStatus, showSnackbarMessage, setFormData]);
+  }, [forceRefresh, debouncedSearchVal, searchStatus, showSnackbarMessage, setFormData]);
 
   const ModRightComponents = [
     <CustomDropdown
@@ -392,28 +413,49 @@ const RequirementEvalPage = () => {
               No requirements found
             </Typography>
             <Typography variant="body2" style={{ marginBottom: "20px" }}>
-              {searchVal || searchStatus !== 3
+              {debouncedSearchVal || searchStatus !== 3
                 ? "Try adjusting your search or filter criteria"
                 : "No requirements have been submitted yet"}
             </Typography>
-            <Typography variant="caption" style={{ 
-              display: "block",
-              marginTop: "10px",
-              color: "#999",
-              fontSize: "0.85rem"
-            }}>
-              Check browser console for detailed debugging information
-            </Typography>
+            {debouncedSearchVal && (
+              <Typography variant="caption" style={{ 
+                display: "block",
+                marginTop: "10px",
+                color: "#999",
+                fontSize: "0.85rem"
+              }}>
+                Search: "{debouncedSearchVal}"
+              </Typography>
+            )}
           </div>
         ) : (
-          <DataTable
-            title="Participant Requirements"
-            fields={["Event Title", "Participant Name", "Status", "Actions"]}
-            data={tableData}
-            onSearch={(key) => setSearchVal(key.toLowerCase())}
-            componentBeforeSearch={ModRightComponents}
-            // componentOnLeft={ModLeftComponents}
-          />
+          <>
+            {(debouncedSearchVal || searchStatus !== 3) && (
+              <Box sx={{ 
+                padding: "10px 20px", 
+                backgroundColor: "#f5f5f5", 
+                borderRadius: "8px",
+                marginBottom: "10px",
+                display: "flex",
+                alignItems: "center",
+                gap: 1
+              }}>
+                <Typography variant="body2" color="text.secondary">
+                  Showing {tableData.length} result{tableData.length !== 1 ? 's' : ''}
+                  {debouncedSearchVal && ` for "${debouncedSearchVal}"`}
+                  {searchStatus !== 3 && ` (${searchStatus === 2 ? 'Not Evaluated' : searchStatus === 1 ? 'Approved' : 'Rejected'})`}
+                </Typography>
+              </Box>
+            )}
+            <DataTable
+              title="Participant Requirements"
+              fields={["Event Title", "Participant Name", "Status", "Actions"]}
+              data={tableData}
+              onSearch={(key) => setSearchVal(key)}
+              componentBeforeSearch={ModRightComponents}
+              // componentOnLeft={ModLeftComponents}
+            />
+          </>
         )}
       </PageLayout>
     </>

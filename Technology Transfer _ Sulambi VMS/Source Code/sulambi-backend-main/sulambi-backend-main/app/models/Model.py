@@ -157,7 +157,13 @@ class Model:
     columnQuery = ", ".join(normalized_columns)
     table_name = self._get_table_name()
 
-    query = f"SELECT {columnQuery} FROM {table_name}"
+    # For requirements table, order by ID descending to get most recent first
+    # This assumes the table has an 'id' column (primary key)
+    if self.table == "requirements":
+      normalized_primary_key = self._normalize_column_name(self.primaryKey)
+      query = f"SELECT {columnQuery} FROM {table_name} ORDER BY {normalized_primary_key} DESC"
+    else:
+      query = f"SELECT {columnQuery} FROM {table_name}"
 
     cursor.execute(query)
     dbResponse = cursor.fetchall()

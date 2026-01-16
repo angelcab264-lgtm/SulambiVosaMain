@@ -48,7 +48,11 @@ const ImageViewerProvider = ({ children }: { children: ReactNode }) => {
           setOpen={setOpenViewer}
         />
       ) : (
-        <LocalPdfViewer url={fileDetails.source} />
+        <LocalPdfViewer
+          url={fileDetails.source}
+          open={openViewer}
+          setOpen={setOpenViewer}
+        />
       )}
       {children}
     </ImageViewerContext.Provider>

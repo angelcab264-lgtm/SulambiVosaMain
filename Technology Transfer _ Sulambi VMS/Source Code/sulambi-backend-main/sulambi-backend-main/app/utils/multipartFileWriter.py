@@ -48,6 +48,9 @@ def cloudinaryFileWriter(keys: list[str], folder: str = "requirements"):
     Upload files to Cloudinary with validation.
     Only allows PDF and image file formats.
     
+    REQUIRES Cloudinary configuration - will NOT fall back to local storage.
+    All files MUST be uploaded to Cloudinary.
+    
     Args:
         keys: List of file field names to process
         folder: Cloudinary folder to store files in (default: "requirements")
@@ -56,7 +59,7 @@ def cloudinaryFileWriter(keys: list[str], folder: str = "requirements"):
         dict: Dictionary mapping file keys to Cloudinary URLs
     
     Raises:
-        BadRequest: If file type is not allowed or upload fails
+        BadRequest: If Cloudinary is not configured, file type is not allowed, or upload fails
     """
     keyPaths = {}
     filenames = list(request.files)
@@ -68,13 +71,22 @@ def cloudinaryFileWriter(keys: list[str], folder: str = "requirements"):
         api_secret=os.getenv("CLOUDINARY_API_SECRET")
     )
     
-    # Check if Cloudinary is configured
-    if not all([
-        os.getenv("CLOUDINARY_CLOUD_NAME"),
-        os.getenv("CLOUDINARY_API_KEY"),
-        os.getenv("CLOUDINARY_API_SECRET")
-    ]):
-        raise BadRequest("Cloudinary configuration is missing. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables.")
+    # STRICT: Check if Cloudinary is configured - NO FALLBACK TO LOCAL STORAGE
+    cloudinary_cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
+    cloudinary_api_key = os.getenv("CLOUDINARY_API_KEY")
+    cloudinary_api_secret = os.getenv("CLOUDINARY_API_SECRET")
+    
+    if not all([cloudinary_cloud_name, cloudinary_api_key, cloudinary_api_secret]):
+        error_msg = (
+            "Cloudinary configuration is missing. "
+            "All file uploads must use Cloudinary. "
+            "Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables. "
+            "Local file storage is disabled for security and scalability."
+        )
+        print(f"[CLOUDINARY_UPLOAD] ❌ ERROR: {error_msg}")
+        raise BadRequest(error_msg)
+    
+    print(f"[CLOUDINARY_UPLOAD] ✅ Cloudinary configured. Cloud: {cloudinary_cloud_name}")
     
     for k in filenames:
         if k not in keys:
@@ -97,7 +109,9 @@ def cloudinaryFileWriter(keys: list[str], folder: str = "requirements"):
             # Generate unique filename
             unique_filename = f"{str(uuid4())}_{file.filename}"
             
-            # Upload to Cloudinary
+            print(f"[CLOUDINARY_UPLOAD] Uploading {k}: {file.filename} to Cloudinary folder '{folder}'...")
+            
+            # Upload to Cloudinary - NO FALLBACK TO LOCAL STORAGE
             result = cloudinary.uploader.upload(
                 file,
                 folder=folder,
@@ -109,13 +123,25 @@ def cloudinaryFileWriter(keys: list[str], folder: str = "requirements"):
             )
             
             # Store the secure URL (or regular URL if secure is not available)
-            keyPaths[k] = result.get('secure_url') or result.get('url')
+            cloudinary_url = result.get('secure_url') or result.get('url')
             
-            print(f"[CLOUDINARY_UPLOAD] ✅ Uploaded {k}: {file.filename} -> {keyPaths[k]}")
+            if not cloudinary_url:
+                raise Exception("Cloudinary upload succeeded but no URL was returned")
+            
+            # Verify it's a Cloudinary URL (not a local path)
+            if not cloudinary_url.startswith('http://') and not cloudinary_url.startswith('https://'):
+                raise Exception(f"Invalid Cloudinary URL format: {cloudinary_url}")
+            
+            keyPaths[k] = cloudinary_url
+            
+            print(f"[CLOUDINARY_UPLOAD] ✅ Successfully uploaded {k}: {file.filename}")
+            print(f"[CLOUDINARY_UPLOAD]    URL: {cloudinary_url[:80]}...")
             
         except Exception as e:
-            print(f"[CLOUDINARY_UPLOAD] ❌ Error uploading {k}: {str(e)}")
-            raise BadRequest(f"Failed to upload file '{file.filename}': {str(e)}")
+            error_msg = f"Failed to upload file '{file.filename}' to Cloudinary: {str(e)}"
+            print(f"[CLOUDINARY_UPLOAD] ❌ ERROR: {error_msg}")
+            print(f"[CLOUDINARY_UPLOAD] ❌ Local storage fallback is disabled. Upload must succeed in Cloudinary.")
+            raise BadRequest(error_msg)
     
     return keyPaths
 

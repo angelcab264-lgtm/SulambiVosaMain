@@ -65,7 +65,7 @@ const DataTable: React.FC<DataTableProps> = ({
               : <span key={index}>{component}</span>
           )}
           <CustomInput
-            placeholder="Search"
+            placeholder="Search by name, email, SR code, event, department..."
             onChange={(event) => onSearch && onSearch(event.target.value)}
             endIcon={
               <IconButton>
@@ -73,6 +73,9 @@ const DataTable: React.FC<DataTableProps> = ({
               </IconButton>
             }
             forceEnd={true}
+            sx={{
+              minWidth: "300px"
+            }}
           />
         </FlexBox>
       </Box>
