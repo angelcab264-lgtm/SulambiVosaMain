@@ -140,8 +140,54 @@ class EvaluationAnalyticsService {
     
     const averageRating = numericFields.reduce((sum, rating) => sum + rating, 0) / numericFields.length;
 
+    // Convert numeric ratings back to text format for criteria
+    const ratingToText = (rating: number): string => {
+      if (rating >= 5) return "Excellent";
+      if (rating >= 4) return "Very Satisfactory";
+      if (rating >= 3) return "Satisfactory";
+      if (rating >= 2) return "Fair";
+      return "Poor";
+    };
+
+    // Prepare criteria object matching backend format
+    const criteria = {
+      overall: ratingToText(data.overallSatisfaction),
+      appropriateness: ratingToText(data.serviceQuality),
+      expectations: ratingToText(data.volunteerHelpfulness),
+      session: ratingToText(data.impactOnCommunity),
+      time: ratingToText(data.accessibility),
+      materials: ratingToText(data.culturalSensitivity)
+    };
+
+    // Submit to backend API
+    try {
+      const axios = (await import('axios')).default;
+      const response = await axios.post('/api/evaluation/beneficiary', {
+        eventId: parseInt(eventId),
+        eventType: eventType,
+        criteria: criteria,
+        comment: data.additionalComments || '',
+        recommendations: '',
+        q13: '', // Empty for beneficiaries
+        q14: data.overallSatisfaction.toString(), // Beneficiary rating
+        email: data.demographics?.location || '', // Use location or empty
+        name: '' // Anonymous beneficiary
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to submit beneficiary evaluation');
+      }
+    } catch (error: any) {
+      console.error('Error submitting beneficiary evaluation to backend:', error);
+      throw new Error(
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to submit beneficiary evaluation. Please try again.'
+      );
+    }
+
     const analytics: EvaluationAnalytics = {
-      beneficiaryId: `ben_${Date.now()}`, // In real app, this would be the actual beneficiary ID
+      beneficiaryId: `ben_${Date.now()}`,
       eventId,
       eventType,
       evaluationType: 'beneficiary',
@@ -156,9 +202,6 @@ class EvaluationAnalyticsService {
     };
 
     this.analytics.push(analytics);
-    
-    // In a real application, this would send to your backend API
-    console.log('Beneficiary Evaluation Analytics:', analytics);
     
     return analytics;
   }

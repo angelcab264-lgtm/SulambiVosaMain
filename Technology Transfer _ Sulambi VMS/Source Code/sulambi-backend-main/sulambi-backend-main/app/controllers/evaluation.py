@@ -310,3 +310,136 @@ def evaluateByRequirement(requirementId):
     "message": "Successfully evaluated event",
     "data": EvaluationDb.get(evaluationTemplate["id"])
   }
+
+def submitBeneficiaryEvaluation():
+  """
+  Submit beneficiary evaluation directly to satisfactionSurveys table
+  This allows beneficiaries to submit feedback without a requirementId
+  """
+  try:
+    from ..database.connection import cursorInstance
+    import json
+    from datetime import datetime
+    
+    # Get data from request
+    event_id = request.json.get("eventId")
+    event_type = request.json.get("eventType", "external")
+    criteria_data = request.json.get("criteria", {})
+    comment = request.json.get("comment", "")
+    recommendations = request.json.get("recommendations", "")
+    q13 = request.json.get("q13", "")
+    q14 = request.json.get("q14", "")
+    
+    # Beneficiary data
+    overall_satisfaction = 0
+    if isinstance(criteria_data, str):
+      try:
+        criteria_data = json.loads(criteria_data) if criteria_data.startswith('{') else eval(criteria_data)
+      except:
+        criteria_data = {}
+    
+    # Map criteria ratings to 1-5 scale
+    rating_map = {
+      "Excellent": 5,
+      "Very Satisfactory": 4,
+      "Satisfactory": 3,
+      "Fair": 2,
+      "Poor": 1
+    }
+    
+    if isinstance(criteria_data, dict):
+      overall_satisfaction = rating_map.get(criteria_data.get('overall', ''), 0)
+      organization_rating = rating_map.get(criteria_data.get('appropriateness', ''), 0)
+      communication_rating = rating_map.get(criteria_data.get('expectations', ''), 0)
+      materials_rating = rating_map.get(criteria_data.get('materials', ''), 0)
+      support_rating = rating_map.get(criteria_data.get('session', ''), 0)
+      venue_rating = rating_map.get(criteria_data.get('venue', ''), 0)
+    else:
+      organization_rating = 0
+      communication_rating = 0
+      materials_rating = 0
+      support_rating = 0
+      venue_rating = 0
+    
+    # Use q14 or calculated overall satisfaction
+    if not overall_satisfaction and q14:
+      try:
+        overall_satisfaction = float(q14)
+      except:
+        pass
+    
+    # For beneficiaries, q14 should contain the satisfaction rating
+    # If q14 is a number, use it; otherwise use overall_satisfaction
+    beneficiary_rating = None
+    if q14:
+      try:
+        beneficiary_rating = float(q14)
+        if not overall_satisfaction:
+          overall_satisfaction = beneficiary_rating
+      except:
+        pass
+    
+    if not overall_satisfaction:
+      overall_satisfaction = 0
+    
+    conn, cursor = cursorInstance()
+    
+    # Get event title
+    event_title = ""
+    try:
+      from ..database.connection import quote_identifier, convert_placeholders
+      event_table = "internalEvents" if event_type == "internal" else "externalEvents"
+      quoted_table = quote_identifier(event_table)
+      query = f"SELECT title FROM {quoted_table} WHERE id = ?"
+      query = convert_placeholders(query)
+      cursor.execute(query, (int(event_id),))
+      event_row = cursor.fetchone()
+      if event_row:
+        event_title = event_row[0]
+    except:
+      pass
+    
+    # Insert directly into satisfactionSurveys table
+    submitted_at = int(datetime.now().timestamp() * 1000)
+    
+    # Generate a unique requirementId for tracking (using negative ID or UUID)
+    import uuid
+    requirement_id = str(uuid.uuid4())
+    
+    cursor.execute("""
+      INSERT INTO satisfactionSurveys (
+        eventId, eventType, requirementId, respondentType, respondentEmail, respondentName,
+        overallSatisfaction, volunteerRating, beneficiaryRating,
+        organizationRating, communicationRating, venueRating, materialsRating, supportRating,
+        q13, q14, comment, recommendations,
+        wouldRecommend, areasForImprovement, positiveAspects,
+        submittedAt, finalized
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+      int(event_id), event_type, requirement_id, "Beneficiary", 
+      request.json.get("email", ""), request.json.get("name", ""),
+      overall_satisfaction, None, beneficiary_rating or overall_satisfaction,
+      organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
+      "", q14 or str(overall_satisfaction), comment, recommendations,
+      overall_satisfaction >= 4 if overall_satisfaction > 0 else None,
+      None,
+      comment if overall_satisfaction >= 4 else None,
+      submitted_at, True
+    ))
+    conn.commit()
+    conn.close()
+    
+    return {
+      "message": "Beneficiary evaluation submitted successfully",
+      "success": True
+    }, 200
+    
+  except Exception as e:
+    print(f"Error submitting beneficiary evaluation: {e}")
+    import traceback
+    traceback.print_exc()
+    return {
+      "message": f"Error submitting beneficiary evaluation: {str(e)}",
+      "success": False,
+      "error": str(e)
+    }, 500

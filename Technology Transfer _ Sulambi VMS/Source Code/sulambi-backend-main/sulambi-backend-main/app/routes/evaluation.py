@@ -29,6 +29,10 @@ def getEvaluatable(requirementId):
 def createEvaluation(requirementId):
   return evaluation.evaluateByRequirement(requirementId)
 
+@EvaluationBlueprint.post("/beneficiary")
+def createBeneficiaryEvaluation():
+  return evaluation.submitBeneficiaryEvaluation()
+
 @EvaluationBlueprint.before_request
 def evaluationMiddleware():
   if (request.method != "OPTIONS"):
@@ -40,8 +44,12 @@ def evaluationMiddleware():
         return userCheck
 
     if (request.method not in ["GET", "DELETE", "PATCH"]):
+      # Skip param check for beneficiary endpoint (public submission)
+      if "/api/evaluation/beneficiary" in request.path:
+        return None
+        
       missingParams = None
-      if (("/api/evaluation" in request.path) and (request.view_args.get("requirementId") != None)):
+      if (("/api/evaluation" in request.path) and (request.view_args and request.view_args.get("requirementId") != None)):
         missingParams = evaluationParams.evaluationParamCheck()
 
       if (missingParams != None):

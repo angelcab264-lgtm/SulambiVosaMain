@@ -888,6 +888,7 @@ def getSatisfactionAnalytics(year=None):
         # Use boolean true/false for PostgreSQL, 1/0 for SQLite
         finalized_condition = "e.finalized = true" if is_postgresql else "e.finalized = 1"
         
+        # Query 1: Get evaluations from evaluation table (volunteers with requirementIds)
         query = f"""
             SELECT e.id, e."requirementid", e.criteria, e.finalized, e.q13, e.q14, e.comment, e.recommendations,
                    r."eventid", r.type,
@@ -902,9 +903,72 @@ def getSatisfactionAnalytics(year=None):
             WHERE {finalized_condition} AND e.criteria IS NOT NULL AND e.criteria != ''
         """
         cursor.execute(query)
-        
         evaluation_rows = cursor.fetchall()
+        
+        # Query 2: Get beneficiary-only submissions from satisfactionSurveys table
+        # (These don't have requirementIds linked to evaluation table)
+        survey_rows = []
+        try:
+            satisfaction_surveys_table = quote_identifier('satisfactionSurveys')
+            finalized_survey_condition = "ss.finalized = true" if is_postgresql else "ss.finalized = 1"
+            
+            # Get event dates for satisfactionSurveys
+            survey_query = f"""
+                SELECT ss.id, ss."requirementId", ss."respondentType", ss."overallSatisfaction", 
+                       ss."volunteerRating", ss."beneficiaryRating", ss.q13, ss.q14, ss.comment, ss.recommendations,
+                       ss."eventId", ss."eventType",
+                       CASE 
+                           WHEN ss."eventType" = 'internal' THEN ei."durationStart"
+                           ELSE ee."durationStart"
+                       END as eventDate
+                FROM {satisfaction_surveys_table} ss
+                LEFT JOIN {internal_events_table} ei ON ss."eventId" = ei.id AND ss."eventType" = 'internal'
+                LEFT JOIN {external_events_table} ee ON ss."eventId" = ee.id AND ss."eventType" = 'external'
+                WHERE {finalized_survey_condition} AND ss."respondentType" = 'Beneficiary'
+            """
+            cursor.execute(survey_query)
+            survey_rows = cursor.fetchall()
+        except Exception as e:
+            # If satisfactionSurveys table doesn't exist or query fails, continue with evaluation_rows only
+            print(f"Warning: Could not query satisfactionSurveys table: {e}")
+            survey_rows = []
+        
+        # Combine both result sets
+        # Convert survey rows to match evaluation row format for processing
+        combined_rows = list(evaluation_rows)
+        for survey_row in survey_rows:
+            # Format: (id, requirementId, respondentType, overallSatisfaction, volunteerRating, 
+            #          beneficiaryRating, q13, q14, comment, recommendations, eventId, eventType, eventDate)
+            survey_id, req_id, resp_type, overall, vol_rating, ben_rating, q13, q14, comment, rec, event_id, event_type, event_date = survey_row
+            
+            # Create criteria-like structure from satisfactionSurveys data
+            criteria_obj = {}
+            if overall:
+                criteria_obj['overall'] = float(overall)
+                criteria_obj['satisfaction'] = float(overall)
+                criteria_obj['rating'] = float(overall)
+            
+            # Convert to criteria string format
+            criteria_str = json.dumps(criteria_obj) if criteria_obj else '{}'
+            
+            # For beneficiaries from satisfactionSurveys, ensure q14 has the rating
+            # Use beneficiaryRating or overallSatisfaction for q14
+            q14_value = ""
+            if ben_rating:
+                q14_value = str(float(ben_rating))
+            elif overall:
+                q14_value = str(float(overall))
+            
+            # Add as a row in the format: (id, requirementId, criteria, finalized, q13, q14, comment, recommendations, eventId, eventType, eventDate)
+            combined_rows.append((
+                survey_id, req_id, criteria_str, True, 
+                str(vol_rating) if vol_rating else "", 
+                q14_value,
+                comment or "", rec or "", event_id, event_type, event_date
+            ))
+        
         conn.close()
+        evaluation_rows = combined_rows
         
         satisfactionBySemester = {}
         issues = {}
@@ -967,18 +1031,35 @@ def getSatisfactionAnalytics(year=None):
                                 satisfaction_score = score_map[rating_keys[i]]
                                 break
                 
-                # Determine if this is volunteer or beneficiary evaluation
-                # Default to volunteer (most evaluations are from volunteers)
-                is_volunteer = True  # Can be enhanced with evaluation type field if needed
+                # Use q13 and q14 to determine if volunteer or beneficiary
+                # q13 = volunteer satisfaction score, q14 = beneficiary satisfaction score
+                if q13:
+                    try:
+                        vol_score = float(q13) if q13 else satisfaction_score
+                        satisfactionBySemester[semester]['volunteers'].append(vol_score)
+                        volunteerSatisfaction.append(vol_score)
+                        satisfactionBySemester[semester]['overall'].append(vol_score)
+                    except:
+                        satisfactionBySemester[semester]['volunteers'].append(satisfaction_score)
+                        volunteerSatisfaction.append(satisfaction_score)
+                        satisfactionBySemester[semester]['overall'].append(satisfaction_score)
                 
-                if is_volunteer:
+                if q14:
+                    try:
+                        ben_score = float(q14) if q14 else satisfaction_score
+                        satisfactionBySemester[semester]['beneficiaries'].append(ben_score)
+                        beneficiarySatisfaction.append(ben_score)
+                        satisfactionBySemester[semester]['overall'].append(ben_score)
+                    except:
+                        satisfactionBySemester[semester]['beneficiaries'].append(satisfaction_score)
+                        beneficiarySatisfaction.append(satisfaction_score)
+                        satisfactionBySemester[semester]['overall'].append(satisfaction_score)
+                
+                # If neither q13 nor q14, assume volunteer (default)
+                if not q13 and not q14:
                     satisfactionBySemester[semester]['volunteers'].append(satisfaction_score)
                     volunteerSatisfaction.append(satisfaction_score)
-                else:
-                    satisfactionBySemester[semester]['beneficiaries'].append(satisfaction_score)
-                    beneficiarySatisfaction.append(satisfaction_score)
-                
-                satisfactionBySemester[semester]['overall'].append(satisfaction_score)
+                    satisfactionBySemester[semester]['overall'].append(satisfaction_score)
                 
                 # Extract issues from comments
                 eval_comment = comment or criteria.get('comment', '') or criteria.get('comments', '') or ''
