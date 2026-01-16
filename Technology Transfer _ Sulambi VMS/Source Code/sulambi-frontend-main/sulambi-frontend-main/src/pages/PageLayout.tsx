@@ -50,7 +50,7 @@ const style = { justifyContent: "flex-start" };
 
 const PageLayout: React.FC<Props> = ({ page, children }) => {
   const [openLogoutDialog, setOpenLogoutDialog] = useState(false);
-  const { accountDetails } = useContext(AccountDetailsContext);
+  const { accountDetails, setAccountDetails } = useContext(AccountDetailsContext);
   const { showSnackbarMessage } = useContext(SnackbarContext);
 
   const navigate = useNavigate();
@@ -79,9 +79,24 @@ const PageLayout: React.FC<Props> = ({ page, children }) => {
                 showSnackbarMessage("Successfully logged out");
               })
               .finally(() => {
+                // Clear ALL authentication-related data
                 localStorage.removeItem("token");
+                localStorage.removeItem("username");
+                localStorage.removeItem("accountType");
                 localStorage.removeItem("membershipCache");
+                // Clear account details context
+                setAccountDetails({
+                  accountType: "admin",
+                  username: "",
+                  details: undefined,
+                });
               });
+          } else {
+            // Even if no token, clear any leftover auth data
+            localStorage.removeItem("token");
+            localStorage.removeItem("username");
+            localStorage.removeItem("accountType");
+            localStorage.removeItem("membershipCache");
           }
           navigate("/");
         }}
