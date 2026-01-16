@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import accuracy_score, mean_squared_error
 import joblib
 import os
-from ..database.connection import cursorInstance, quote_identifier
+from ..database.connection import cursorInstance, quote_identifier, DATABASE_URL
 
 class AnalyticsEngine:
     def __init__(self):
@@ -84,6 +84,10 @@ class AnalyticsEngine:
     
     def prepare_volunteer_dropout_data(self):
         """Prepare data for volunteer dropout risk prediction"""
+        # Determine boolean value based on database type
+        is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+        accepted_value = 'true' if is_postgresql else '1'
+        
         membership_table = quote_identifier('membership')
         requirements_table = quote_identifier('requirements')
         evaluation_table = quote_identifier('evaluation')
@@ -109,7 +113,7 @@ class AnalyticsEngine:
         FROM {membership_table} m
         LEFT JOIN {requirements_table} r ON m.email = r.email
         LEFT JOIN {evaluation_table} e ON r.id = e."requirementId"
-        WHERE m.accepted = true
+        WHERE m.accepted = {accepted_value}
         GROUP BY m.id
         """
         
