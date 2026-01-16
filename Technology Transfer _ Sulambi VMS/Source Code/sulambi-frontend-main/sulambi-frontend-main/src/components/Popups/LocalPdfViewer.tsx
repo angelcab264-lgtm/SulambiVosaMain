@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
+import { Document, Page } from "react-pdf";
+import { pdfjs } from "../../utils/pdfjsWorker";
 import { Box, IconButton, Typography, CircularProgress, Alert } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
@@ -10,18 +11,8 @@ import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 
-// Set up PDF.js worker with reliable CDN
-// react-pdf 9.1.1 uses PDF.js 4.8.69
-// Use unpkg.com which is more reliable than cdnjs for this version
-const pdfjsVersion = pdfjs.version || "4.8.69";
-
-// Use .js format as it's more compatible across browsers
-// unpkg.com is generally more reliable and up-to-date than cdnjs
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
-
-// Log worker configuration for debugging
-console.log(`[PDF_VIEWER] PDF.js version: ${pdfjsVersion}`);
-console.log(`[PDF_VIEWER] Worker source: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+// PDF.js worker is configured in utils/pdfjsWorker.ts
+// This ensures it's set before any react-pdf components are used
 
 interface Props {
   url: string;
@@ -36,6 +27,18 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
   const [scale, setScale] = useState(1.5);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Ensure worker is set correctly on component mount (override any defaults)
+  useEffect(() => {
+    const pdfjsVersion = pdfjs.version || "4.8.69";
+    const correctWorkerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
+    
+    // Always force set to unpkg (override cdnjs or any other source)
+    if (pdfjs.GlobalWorkerOptions.workerSrc !== correctWorkerSrc) {
+      console.log(`[PDF_VIEWER] Force updating worker source from ${pdfjs.GlobalWorkerOptions.workerSrc} to ${correctWorkerSrc}`);
+      pdfjs.GlobalWorkerOptions.workerSrc = correctWorkerSrc;
+    }
+  }, []);
 
   useEffect(() => {
     if (!open || !url) return;
@@ -111,12 +114,27 @@ const LocalPDFViewer: React.FC<Props> = ({ url, open, setOpen }) => {
   const onDocumentLoadError = (error: Error) => {
     console.error("PDF load error:", error);
     console.error("Error details:", error.message);
+    console.error("Current worker source:", pdfjs.GlobalWorkerOptions.workerSrc);
     
     // Check if it's a worker error
-    if (error.message.includes("worker") || error.message.includes("Failed to fetch") || error.message.includes("dynamically imported")) {
+    if (error.message.includes("worker") || 
+        error.message.includes("Failed to fetch") || 
+        error.message.includes("dynamically imported") ||
+        error.message.includes("fake worker")) {
+      
+      // Try to fix worker source if it's wrong
+      const pdfjsVersion = pdfjs.version || "4.8.69";
+      const correctWorkerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.js`;
+      
+      if (pdfjs.GlobalWorkerOptions.workerSrc !== correctWorkerSrc || 
+          pdfjs.GlobalWorkerOptions.workerSrc.includes('cdnjs')) {
+        console.log(`[PDF_VIEWER] Attempting to fix worker source from ${pdfjs.GlobalWorkerOptions.workerSrc} to ${correctWorkerSrc}`);
+        pdfjs.GlobalWorkerOptions.workerSrc = correctWorkerSrc;
+      }
+      
       setError(
         "PDF viewer worker failed to load. The PDF file is valid, but the viewer cannot initialize. " +
-        "Please try downloading the file instead using the download button."
+        "Please try downloading the file instead using the download button, or refresh the page."
       );
     } else {
       setError("Failed to parse PDF. The file may be corrupted.");
