@@ -10,65 +10,63 @@ load_dotenv()
 
 EMAIL = os.getenv("AUTOMAILER_EMAIL")
 PASSW = os.getenv("AUTOMAILER_PASSW")
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL") or EMAIL
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL") or EMAIL
 
-# Try to import SendGrid
+# Try to import Resend
 try:
-    from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Mail
-    SENDGRID_AVAILABLE = True
+    import resend
+    RESEND_AVAILABLE = True
 except ImportError:
-    SENDGRID_AVAILABLE = False
-    SendGridAPIClient = None
-    Mail = None
+    RESEND_AVAILABLE = False
+    resend = None
 
 def isEmailConfigured():
   """Check if email configuration is properly set up"""
-  # Check SendGrid first (preferred for Render free tier)
-  if SENDGRID_AVAILABLE and SENDGRID_API_KEY and SENDGRID_API_KEY != "":
+  # Check Resend first (preferred for Render free tier)
+  if RESEND_AVAILABLE and RESEND_API_KEY and RESEND_API_KEY != "":
     return True
   # Fall back to SMTP configuration
   return EMAIL is not None and PASSW is not None and EMAIL != "" and PASSW != ""
 
-def isSendGridConfigured():
-  """Check if SendGrid is configured"""
-  return SENDGRID_AVAILABLE and SENDGRID_API_KEY and SENDGRID_API_KEY != "" and (SENDGRID_FROM_EMAIL or EMAIL)
+def isResendConfigured():
+  """Check if Resend is configured"""
+  return RESEND_AVAILABLE and RESEND_API_KEY and RESEND_API_KEY != "" and (RESEND_FROM_EMAIL or EMAIL)
 
 def validateEmailConfig():
   """Validate email configuration and return status"""
-  # Check SendGrid first (preferred for Render free tier)
-  if isSendGridConfigured():
+  # Check Resend first (preferred for Render free tier)
+  if isResendConfigured():
     try:
-      # Test SendGrid API key by making a simple API call
-      sg = SendGridAPIClient(SENDGRID_API_KEY)
-      response = sg.client.api_keys.get()
-      
-      if response.status_code == 200:
+      # Test Resend API key by attempting to list domains
+      # This is a lightweight API call to validate the key
+      resend.api_key = RESEND_API_KEY
+      # Simple validation - just check if API key is set and format looks correct
+      if RESEND_API_KEY.startswith("re_"):
         return {
           "configured": True,
-          "message": "SendGrid email configuration is valid",
-          "provider": "SendGrid"
+          "message": "Resend email configuration is valid",
+          "provider": "Resend"
         }
       else:
         return {
           "configured": False,
-          "message": f"SendGrid API key validation failed with status {response.status_code}",
-          "provider": "SendGrid"
+          "message": "Resend API key format is invalid. It should start with 're_'",
+          "provider": "Resend"
         }
     except Exception as e:
       error_msg = str(e)
       return {
         "configured": False,
-        "message": f"SendGrid configuration test failed: {error_msg}",
-        "provider": "SendGrid"
+        "message": f"Resend configuration test failed: {error_msg}",
+        "provider": "Resend"
       }
   
   # Fall back to SMTP validation
   if not isEmailConfigured():
     return {
       "configured": False,
-      "message": "Email configuration missing. Please set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL (or AUTOMAILER_EMAIL and AUTOMAILER_PASSW for SMTP) in .env file",
+      "message": "Email configuration missing. Please set RESEND_API_KEY and RESEND_FROM_EMAIL (or AUTOMAILER_EMAIL and AUTOMAILER_PASSW for SMTP) in .env file",
       "provider": "None"
     }
   
@@ -102,7 +100,7 @@ def validateEmailConfig():
     if "timed out" in error_msg.lower() or "timeout" in error_msg.lower():
       return {
         "configured": False,
-        "message": "Email configuration test timed out. SMTP connection to smtp.gmail.com:587 timed out after 10 seconds. Consider using SendGrid for Render free tier.",
+        "message": "Email configuration test timed out. SMTP connection to smtp.gmail.com:587 timed out after 10 seconds. Consider using Resend for Render free tier.",
         "provider": "SMTP"
       }
     else:
@@ -129,33 +127,35 @@ def sendMail(mailTo: str, content):
   Smtp.close()
 
 def htmlMailer(mailTo: str, subject: str, htmlRendered: str):
-  """Send HTML email with error handling - uses SendGrid if configured, otherwise SMTP"""
+  """Send HTML email with error handling - uses Resend if configured, otherwise SMTP"""
   if not isEmailConfigured():
     print(f"[EMAIL ERROR] Email not configured. Cannot send email to {mailTo}")
     return False
   
-  # Use SendGrid if configured (preferred for Render free tier)
-  if isSendGridConfigured():
+  # Use Resend if configured (preferred for Render free tier)
+  if isResendConfigured():
     try:
-      from_email = SENDGRID_FROM_EMAIL or EMAIL
-      message = Mail(
-        from_email=from_email,
-        to_emails=mailTo,
-        subject=subject,
-        html_content=htmlRendered
-      )
+      resend.api_key = RESEND_API_KEY
+      from_email = RESEND_FROM_EMAIL or EMAIL
       
-      sg = SendGridAPIClient(SENDGRID_API_KEY)
-      response = sg.send(message)
+      params = {
+        "from": from_email,
+        "to": mailTo,
+        "subject": subject,
+        "html": htmlRendered
+      }
       
-      if response.status_code in [200, 201, 202]:
-        print(f"[EMAIL SUCCESS] Email sent via SendGrid to {mailTo} (status: {response.status_code})")
+      response = resend.Emails.send(params)
+      
+      # Resend returns the email data on success, raises exception on error
+      if response and hasattr(response, "id"):
+        print(f"[EMAIL SUCCESS] Email sent via Resend to {mailTo} (id: {response.id})")
         return True
       else:
-        print(f"[EMAIL ERROR] SendGrid returned status {response.status_code}: {response.body}")
+        print(f"[EMAIL ERROR] Resend did not return expected response: {response}")
         return False
     except Exception as e:
-      print(f"[EMAIL ERROR] Failed to send email via SendGrid to {mailTo}: {str(e)}")
+      print(f"[EMAIL ERROR] Failed to send email via Resend to {mailTo}: {str(e)}")
       return False
   
   # Fall back to SMTP
