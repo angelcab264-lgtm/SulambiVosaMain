@@ -282,6 +282,7 @@ def testEmail():
       "success": True,
       "configured": True,
       "smtp_test": validation,
+      "provider": validation.get("provider", "Unknown"),
       "message": validation.get("message", "Email configuration check completed")
     }
     
