@@ -533,10 +533,21 @@ def submitBeneficiaryEvaluation():
     # Ensure submitted_at is within BIGINT range (PostgreSQL BIGINT: -9223372036854775808 to 9223372036854775807)
     # Current timestamp in milliseconds is well within this range, but ensure it's an integer
     submitted_at = int(submitted_at)
+    # Ensure it's within safe range (should be fine for current timestamps)
     if submitted_at > 9223372036854775807:
       submitted_at = 9223372036854775807
     elif submitted_at < -9223372036854775808:
       submitted_at = -9223372036854775808
+    
+    # Ensure event_id is within INTEGER range and is actually an integer
+    # PostgreSQL INTEGER: -2147483648 to 2147483647
+    event_id = int(event_id) if event_id else None
+    if event_id and (event_id > 2147483647 or event_id < -2147483648):
+      return {
+        "message": "Invalid event ID",
+        "success": False,
+        "error": f"eventId {event_id} is out of range for PostgreSQL INTEGER type"
+      }, 400
     
     # Ensure REAL values are properly typed (float, can be None for optional fields)
     # PostgreSQL REAL can handle None/NULL values
