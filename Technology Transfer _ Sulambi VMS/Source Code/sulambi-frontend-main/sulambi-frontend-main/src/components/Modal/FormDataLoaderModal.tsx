@@ -225,17 +225,11 @@ const FormDataLoaderModal: React.FC<Props> = ({
       style.id = "print-hide-style";
       style.textContent = `
           @page {
-            margin-top: 0.3in;
+            margin-top: 0.6in;
             margin-bottom: 0.7in;
             margin-left: 0.7in;
             margin-right: 0.8in;
             size: letter;
-            @top-right {
-              content: "Sulambi - VOSA";
-              font-family: "Times New Roman", Times, serif;
-              font-size: 9pt;
-              color: black;
-            }
             @bottom-right {
               content: "Page " counter(page);
               font-family: "Times New Roman", Times, serif;
@@ -245,16 +239,10 @@ const FormDataLoaderModal: React.FC<Props> = ({
           }
           
           @page:first {
-            margin-top: 0.3in;
+            margin-top: 0.6in;
             margin-bottom: 0.7in;
             margin-left: 0.7in;
             margin-right: 0.8in;
-            @top-right {
-              content: "Sulambi - VOSA";
-              font-family: "Times New Roman", Times, serif;
-              font-size: 9pt;
-              color: black;
-            }
             @bottom-left {
               content: "Tracking No. : ___________";
               font-family: "Times New Roman", Times, serif;

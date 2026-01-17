@@ -1128,28 +1128,31 @@ def getSatisfactionAnalytics(year=None):
                 print(f"Error processing evaluation {eval_id}: {e}")
                 continue
         
-        # Calculate semester averages
+        # Calculate semester averages - only include scores when there's actual data
         satisfactionData = []
         for semester, data in satisfactionBySemester.items():
             if data['overall']:
                 overall_avg = sum(data['overall']) / len(data['overall'])
-                volunteer_avg = sum(data['volunteers']) / len(data['volunteers']) if data['volunteers'] else overall_avg
-                beneficiary_avg = sum(data['beneficiaries']) / len(data['beneficiaries']) if data['beneficiaries'] else overall_avg
+                # Only calculate volunteer average if there are actual volunteer ratings
+                volunteer_avg = sum(data['volunteers']) / len(data['volunteers']) if data['volunteers'] else None
+                # Only calculate beneficiary average if there are actual beneficiary ratings
+                beneficiary_avg = sum(data['beneficiaries']) / len(data['beneficiaries']) if data['beneficiaries'] else None
                 
                 satisfactionData.append({
                     'semester': semester,
                     'score': round(overall_avg, 1),
-                    'volunteers': round(volunteer_avg, 1),
-                    'beneficiaries': round(beneficiary_avg, 1)
+                    'volunteers': round(volunteer_avg, 1) if volunteer_avg is not None else None,
+                    'beneficiaries': round(beneficiary_avg, 1) if beneficiary_avg is not None else None
                 })
         
         # Sort by semester
         satisfactionData.sort(key=lambda x: x['semester'])
         
-        # Calculate overall averages
-        overall_avg = sum([item['score'] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 4.0
-        volunteer_avg = sum(volunteerSatisfaction) / len(volunteerSatisfaction) if volunteerSatisfaction else 4.0
-        beneficiary_avg = sum(beneficiarySatisfaction) / len(beneficiarySatisfaction) if beneficiarySatisfaction else 4.0
+        # Calculate overall averages - only when there's actual data
+        overall_avg = sum([item['score'] for item in satisfactionData]) / len(satisfactionData) if satisfactionData else 0
+        # Only calculate averages when there are actual ratings (return 0 when no ratings, not 4.0)
+        volunteer_avg = sum(volunteerSatisfaction) / len(volunteerSatisfaction) if volunteerSatisfaction else 0
+        beneficiary_avg = sum(beneficiarySatisfaction) / len(beneficiarySatisfaction) if beneficiarySatisfaction else 0
         
         # Format top issues
         top_issues = []

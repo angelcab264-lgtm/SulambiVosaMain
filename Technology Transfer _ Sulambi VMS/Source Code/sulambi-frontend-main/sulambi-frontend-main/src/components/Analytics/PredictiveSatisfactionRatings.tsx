@@ -256,23 +256,33 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             // Commit augmented data
             setSatisfactionData(enrichedData);
             setTopIssues(issues);
-            // Compute averages from enriched data for display consistency
-            const avgOverall = Number((enrichedData.reduce((s: number, it: any) => s + (it.score || 0), 0) / enrichedData.length).toFixed(1));
-            const avgVol = Number((enrichedData.reduce((s: number, it: any) => s + (it.volunteers || 0), 0) / enrichedData.length).toFixed(1));
-            const avgBen = Number((enrichedData.reduce((s: number, it: any) => s + (it.beneficiaries || 0), 0) / enrichedData.length).toFixed(1));
-            setAverageScore(avgOverall);
-            
-            // Calculate volunteer and beneficiary averages
-            setVolunteerScore(avgVol);
-            setBeneficiaryScore(avgBen);
-            
-            // Extract counts from response data
+            // Extract counts from response data FIRST (before calculating averages)
             const responseData = satisfactionResponse;
+            let volunteerCountFromAPI = 0;
+            let beneficiaryCountFromAPI = 0;
             if (responseData?.data) {
-              setVolunteerCount(responseData.data.volunteerCount || 0);
-              setBeneficiaryCount(responseData.data.beneficiaryCount || 0);
+              volunteerCountFromAPI = responseData.data.volunteerCount || 0;
+              beneficiaryCountFromAPI = responseData.data.beneficiaryCount || 0;
+              setVolunteerCount(volunteerCountFromAPI);
+              setBeneficiaryCount(beneficiaryCountFromAPI);
               setTotalCount(responseData.data.totalCount || 0);
             }
+            
+            // Compute averages from enriched data for display consistency
+            const avgOverall = Number((enrichedData.reduce((s: number, it: any) => s + (it.score || 0), 0) / enrichedData.length).toFixed(1));
+            // Only calculate volunteer average if there are actual volunteer ratings
+            const avgVol = volunteerCountFromAPI > 0 
+              ? Number((enrichedData.reduce((s: number, it: any) => s + (it.volunteers || 0), 0) / enrichedData.filter((it: any) => it.volunteers != null && it.volunteers !== undefined).length).toFixed(1))
+              : 0;
+            // Only calculate beneficiary average if there are actual beneficiary ratings
+            const avgBen = beneficiaryCountFromAPI > 0
+              ? Number((enrichedData.reduce((s: number, it: any) => s + (it.beneficiaries || 0), 0) / enrichedData.filter((it: any) => it.beneficiaries != null && it.beneficiaries !== undefined).length).toFixed(1))
+              : 0;
+            
+            setAverageScore(avgOverall);
+            // Only set scores when there are actual ratings (count > 0)
+            setVolunteerScore(volunteerCountFromAPI > 0 ? avgVol : 0);
+            setBeneficiaryScore(beneficiaryCountFromAPI > 0 ? avgBen : 0);
 
             // Extract available years from data (semester format: YYYY-#)
             const currentYear = new Date().getFullYear();
@@ -453,8 +463,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   const interpretationLines = [
     `Overall Satisfaction: ${averageScore}/5.0 (${totalCount} rating${totalCount !== 1 ? 's' : ''}) — ${currentTrend} trend`,
-    `Volunteers: ${volunteerScore}/5.0 (${volunteerCount} rating${volunteerCount !== 1 ? 's' : ''})`,
-    `Beneficiaries: ${beneficiaryScore}/5.0 (${beneficiaryCount} rating${beneficiaryCount !== 1 ? 's' : ''})`
+    `Volunteers: ${volunteerCount > 0 ? `${volunteerScore}/5.0 (${volunteerCount} rating${volunteerCount !== 1 ? 's' : ''})` : 'No ratings yet'}`,
+    `Beneficiaries: ${beneficiaryCount > 0 ? `${beneficiaryScore}/5.0 (${beneficiaryCount} rating${beneficiaryCount !== 1 ? 's' : ''})` : 'No ratings yet'}`
   ];
   const predictionText = `Prediction: Satisfaction expected to remain ${currentTrend.toLowerCase()} next semester.`;
 
@@ -526,22 +536,40 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           </Box>
           <FlexBox gap={2}>
             <Box flex={1}>
-              <Typography variant="body2" fontSize="0.875rem">Volunteers: {volunteerScore}/5.0</Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={(volunteerScore / 5) * 100} 
-                sx={{ height: 4, borderRadius: 2, backgroundColor: '#e3f2fd' }}
-                color="primary"
-              />
+              <Typography variant="body2" fontSize="0.875rem">
+                Volunteers: {volunteerCount > 0 ? `${volunteerScore}/5.0` : 'No ratings yet'}
+                {volunteerCount > 0 && ` (${volunteerCount})`}
+              </Typography>
+              {volunteerCount > 0 ? (
+                <LinearProgress 
+                  variant="determinate" 
+                  value={(volunteerScore / 5) * 100} 
+                  sx={{ height: 4, borderRadius: 2, backgroundColor: '#e3f2fd' }}
+                  color="primary"
+                />
+              ) : (
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                  Waiting for volunteer evaluations
+                </Typography>
+              )}
             </Box>
             <Box flex={1}>
-              <Typography variant="body2" fontSize="0.875rem">Beneficiaries: {beneficiaryScore}/5.0</Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={(beneficiaryScore / 5) * 100} 
-                sx={{ height: 4, borderRadius: 2, backgroundColor: '#f3e5f5' }}
-                color="secondary"
-              />
+              <Typography variant="body2" fontSize="0.875rem">
+                Beneficiaries: {beneficiaryCount > 0 ? `${beneficiaryScore}/5.0` : 'No ratings yet'}
+                {beneficiaryCount > 0 && ` (${beneficiaryCount})`}
+              </Typography>
+              {beneficiaryCount > 0 ? (
+                <LinearProgress 
+                  variant="determinate" 
+                  value={(beneficiaryScore / 5) * 100} 
+                  sx={{ height: 4, borderRadius: 2, backgroundColor: '#f3e5f5' }}
+                  color="secondary"
+                />
+              ) : (
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                  Waiting for beneficiary evaluations
+                </Typography>
+              )}
             </Box>
           </FlexBox>
         </Box>
@@ -999,31 +1027,51 @@ const PredictiveSatisfactionRatings: React.FC = () => {
                 </Box>
                 <Box mb={1}>
                   <FlexBox justifyContent="space-between" alignItems="center" mb={0.5}>
-                    <Typography variant="body2">Volunteers: {volunteerScore}/5.0</Typography>
-                    <Typography variant="caption" color="text.secondary" fontSize="0.75rem">
-                      {volunteerCount} rating{volunteerCount !== 1 ? 's' : ''}
+                    <Typography variant="body2">
+                      Volunteers: {volunteerCount > 0 ? `${volunteerScore}/5.0` : 'No ratings yet'}
                     </Typography>
+                    {volunteerCount > 0 && (
+                      <Typography variant="caption" color="text.secondary" fontSize="0.75rem">
+                        {volunteerCount} rating{volunteerCount !== 1 ? 's' : ''}
+                      </Typography>
+                    )}
                   </FlexBox>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={(volunteerScore / 5) * 100} 
-                    sx={{ height: 6, borderRadius: 3, backgroundColor: '#e3f2fd' }}
-                    color="primary"
-                  />
+                  {volunteerCount > 0 ? (
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={(volunteerScore / 5) * 100} 
+                      sx={{ height: 6, borderRadius: 3, backgroundColor: '#e3f2fd' }}
+                      color="primary"
+                    />
+                  ) : (
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                      Waiting for volunteer evaluations
+                    </Typography>
+                  )}
                 </Box>
                 <Box mb={1}>
                   <FlexBox justifyContent="space-between" alignItems="center" mb={0.5}>
-                    <Typography variant="body2">Beneficiaries: {beneficiaryScore}/5.0</Typography>
-                    <Typography variant="caption" color="text.secondary" fontSize="0.75rem">
-                      {beneficiaryCount} rating{beneficiaryCount !== 1 ? 's' : ''}
+                    <Typography variant="body2">
+                      Beneficiaries: {beneficiaryCount > 0 ? `${beneficiaryScore}/5.0` : 'No ratings yet'}
                     </Typography>
+                    {beneficiaryCount > 0 && (
+                      <Typography variant="caption" color="text.secondary" fontSize="0.75rem">
+                        {beneficiaryCount} rating{beneficiaryCount !== 1 ? 's' : ''}
+                      </Typography>
+                    )}
                   </FlexBox>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={(beneficiaryScore / 5) * 100} 
-                    sx={{ height: 6, borderRadius: 3, backgroundColor: '#f3e5f5' }}
-                    color="secondary"
-                  />
+                  {beneficiaryCount > 0 ? (
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={(beneficiaryScore / 5) * 100} 
+                      sx={{ height: 6, borderRadius: 3, backgroundColor: '#f3e5f5' }}
+                      color="secondary"
+                    />
+                  ) : (
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                      Waiting for beneficiary evaluations
+                    </Typography>
+                  )}
                 </Box>
               </Box>
 
