@@ -23,13 +23,15 @@ allowed_origins = [
     "http://localhost:3000",
     "http://localhost:8080",
     PRODUCTION_FRONTEND_URL,  # Production frontend (configurable via FRONTEND_URL env var)
+    "https://www.sulambi-vosa.com",  # Custom domain with www
+    "https://sulambi-vosa.com",  # Custom domain without www
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
     "http://127.0.0.1:3000"
 ]
 
 def is_allowed_origin(origin):
-    """Check if origin is allowed, including Render subdomains"""
+    """Check if origin is allowed, including Render subdomains and custom domains"""
     if not origin:
         return False
     
@@ -39,6 +41,10 @@ def is_allowed_origin(origin):
     
     # Allow any Render subdomain (for flexibility in deployment)
     if origin.endswith('.onrender.com'):
+        return True
+    
+    # Allow custom domain (sulambi-vosa.com) with or without www
+    if 'sulambi-vosa.com' in origin:
         return True
     
     return False
