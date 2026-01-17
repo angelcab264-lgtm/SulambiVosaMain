@@ -276,7 +276,7 @@ def evaluateByRequirement(requirementId):
     if is_postgresql:
       check_query = """
         SELECT id FROM "satisfactionSurveys" 
-        WHERE requirementid = %s AND respondentemail = %s
+        WHERE "requirementId" = %s AND "respondentEmail" = %s
       """
     else:
       check_query = """
@@ -291,15 +291,16 @@ def evaluateByRequirement(requirementId):
       submitted_at = int(datetime.now().timestamp() * 1000)
       
       if is_postgresql:
-        # PostgreSQL: columns are lowercase (unquoted in CREATE TABLE = lowercase in PostgreSQL)
+        # PostgreSQL: Use quoted identifiers to match the actual table schema
+        # The table has mixed-case columns (eventId, submittedAt as BIGINT, etc.)
         insert_query = """
           INSERT INTO "satisfactionSurveys" (
-            eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-            overallsatisfaction, volunteerrating, beneficiaryrating,
-            organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+            "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+            "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+            "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
             q13, q14, comment, recommendations,
-            wouldrecommend, areasforimprovement, positiveaspects,
-            submittedat, finalized
+            "wouldRecommend", "areasForImprovement", "positiveAspects",
+            "submittedAt", finalized
           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         finalized_val = convert_boolean_value(True)
@@ -361,20 +362,37 @@ def submitBeneficiaryEvaluation():
     q13 = request.json.get("q13", "") or ""
     q14 = request.json.get("q14", "") or ""
     
-    # Validate event_id
+    # Validate event_id - PostgreSQL INTEGER range: -2,147,483,648 to 2,147,483,647
     try:
-      event_id = int(event_id) if event_id else None
+      # Handle both string and int event_id
+      if isinstance(event_id, str):
+        event_id = int(event_id)
+      elif event_id is not None:
+        event_id = int(event_id)
+      else:
+        event_id = None
+      
       if event_id is None or event_id <= 0:
         return {
           "message": "Invalid event ID",
           "success": False,
           "error": "eventId is required and must be a positive integer"
         }, 400
-    except (ValueError, TypeError):
+      
+      # Check if event_id is within PostgreSQL INTEGER range
+      INTEGER_MAX = 2147483647
+      INTEGER_MIN = -2147483648
+      if event_id > INTEGER_MAX or event_id < INTEGER_MIN:
+        return {
+          "message": "Invalid event ID",
+          "success": False,
+          "error": f"eventId {event_id} is out of range for PostgreSQL INTEGER type (must be between {INTEGER_MIN} and {INTEGER_MAX})"
+        }, 400
+    except (ValueError, TypeError) as e:
       return {
         "message": "Invalid event ID",
         "success": False,
-        "error": "eventId must be a valid integer"
+        "error": f"eventId must be a valid integer: {str(e)}"
       }, 400
     
     # Beneficiary data
@@ -431,7 +449,7 @@ def submitBeneficiaryEvaluation():
     
     conn, cursor = cursorInstance()
     
-    # Get event title
+    # Verify event exists and get event title
     event_title = ""
     try:
       from ..database.connection import quote_identifier, convert_placeholders
@@ -439,12 +457,19 @@ def submitBeneficiaryEvaluation():
       quoted_table = quote_identifier(event_table)
       query = f"SELECT title FROM {quoted_table} WHERE id = ?"
       query = convert_placeholders(query)
-      cursor.execute(query, (int(event_id),))
+      cursor.execute(query, (event_id,))
       event_row = cursor.fetchone()
       if event_row:
         event_title = event_row[0]
-    except:
-      pass
+      else:
+        return {
+          "message": "Event not found",
+          "success": False,
+          "error": f"Event with ID {event_id} and type {event_type} does not exist"
+        }, 404
+    except Exception as e:
+      print(f"Error checking event: {e}")
+      # Continue anyway - event check is not critical
     
     # Insert directly into satisfactionSurveys table
     submitted_at = int(datetime.now().timestamp() * 1000)
@@ -458,16 +483,17 @@ def submitBeneficiaryEvaluation():
     is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
     
     if is_postgresql:
-      # PostgreSQL: columns are lowercase (unquoted in CREATE TABLE = lowercase in PostgreSQL)
+      # PostgreSQL: Use quoted identifiers to match the actual table schema
+      # The table has mixed-case columns (eventId, submittedAt as BIGINT, etc.)
       table_name = quote_identifier('satisfactionSurveys')
       insert_query = f"""
         INSERT INTO {table_name} (
-          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-          overallsatisfaction, volunteerrating, beneficiaryrating,
-          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
           q13, q14, comment, recommendations,
-          wouldrecommend, areasforimprovement, positiveaspects,
-          submittedat, finalized
+          "wouldRecommend", "areasForImprovement", "positiveAspects",
+          "submittedAt", finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:
@@ -509,24 +535,60 @@ def submitBeneficiaryEvaluation():
     materials_rating_val = float(materials_rating) if materials_rating else None
     support_rating_val = float(support_rating) if support_rating else None
     
-    cursor.execute(insert_query, (
-      event_id, event_type, requirement_id, "Beneficiary", 
-      request.json.get("email", "") or "", request.json.get("name", "") or "",
-      overall_satisfaction_val, None, beneficiary_rating_val,
-      organization_rating_val, communication_rating_val, venue_rating_val, materials_rating_val, support_rating_val,
-      q13 or "", q14 or str(overall_satisfaction) if overall_satisfaction else "", comment or "", recommendations or "",
-      would_recommend,
-      None,
-      comment if overall_satisfaction >= 4 else None,
-      submitted_at, finalized_value
-    ))
-    conn.commit()
-    conn.close()
-    
-    return {
-      "message": "Beneficiary evaluation submitted successfully",
-      "success": True
-    }, 200
+    try:
+      cursor.execute(insert_query, (
+        event_id, event_type, requirement_id, "Beneficiary", 
+        request.json.get("email", "") or "", request.json.get("name", "") or "",
+        overall_satisfaction_val, None, beneficiary_rating_val,
+        organization_rating_val, communication_rating_val, venue_rating_val, materials_rating_val, support_rating_val,
+        q13 or "", q14 or str(overall_satisfaction) if overall_satisfaction else "", comment or "", recommendations or "",
+        would_recommend,
+        None,
+        comment if overall_satisfaction >= 4 else None,
+        submitted_at, finalized_value
+      ))
+      conn.commit()
+      conn.close()
+      
+      return {
+        "message": "Beneficiary evaluation submitted successfully",
+        "success": True
+      }, 200
+    except Exception as db_error:
+      conn.rollback()
+      conn.close()
+      error_msg = str(db_error)
+      print(f"Database error submitting beneficiary evaluation: {db_error}")
+      import traceback
+      traceback.print_exc()
+      
+      # Provide more specific error message
+      if "integer out of range" in error_msg.lower():
+        # Log all parameter values for debugging
+        param_details = {
+          "event_id": event_id,
+          "event_id_type": type(event_id).__name__,
+          "event_id_range_check": f"INTEGER range: -2147483648 to 2147483647, value: {event_id}",
+          "submitted_at": submitted_at,
+          "submitted_at_type": type(submitted_at).__name__,
+          "submitted_at_range_check": f"BIGINT range: -9223372036854775808 to 9223372036854775807, value: {submitted_at}",
+          "overall_satisfaction": overall_satisfaction_val,
+          "beneficiary_rating": beneficiary_rating_val,
+        }
+        print(f"[DEBUG] Integer out of range error details: {param_details}")
+        
+        return {
+          "message": "Database error: One of the values is out of range. Please check event ID and timestamp values.",
+          "success": False,
+          "error": error_msg,
+          "details": param_details
+        }, 500
+      
+      return {
+        "message": f"Error submitting beneficiary evaluation: {error_msg}",
+        "success": False,
+        "error": error_msg
+      }, 500
     
   except Exception as e:
     print(f"Error submitting beneficiary evaluation: {e}")
