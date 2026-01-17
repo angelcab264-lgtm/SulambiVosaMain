@@ -499,15 +499,15 @@ def submitBeneficiaryEvaluation():
     table_name = quote_identifier('satisfactionSurveys')
     
     if is_postgresql:
-      # PostgreSQL: Use lowercase column names (unquoted = lowercase in PostgreSQL)
-      insert_query = f"""
-        INSERT INTO {table_name} (
-          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
-          overallsatisfaction, volunteerrating, beneficiaryrating,
-          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+      # PostgreSQL: Use quoted mixed-case column names - EXACT same as evaluateByRequirement
+      insert_query = """
+        INSERT INTO "satisfactionSurveys" (
+          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
+          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
+          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
           q13, q14, comment, recommendations,
-          wouldrecommend, areasforimprovement, positiveaspects,
-          submittedat, finalized
+          "wouldRecommend", "areasForImprovement", "positiveAspects",
+          "submittedAt", finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:
@@ -523,54 +523,26 @@ def submitBeneficiaryEvaluation():
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       """
     
-    # Convert boolean for database compatibility
-    finalized_value = convert_boolean_value(True)
-    would_recommend = convert_boolean_value(overall_satisfaction >= 4 if overall_satisfaction > 0 else None)
+    # Convert boolean for database compatibility - SAME as evaluateByRequirement
+    if is_postgresql:
+      finalized_val = convert_boolean_value(True)
+      would_recommend_val = convert_boolean_value(overall_satisfaction >= 4 if overall_satisfaction > 0 else None)
+    else:
+      finalized_val = True
+      would_recommend_val = overall_satisfaction >= 4 if overall_satisfaction > 0 else None
     
-    # Ensure proper types for PostgreSQL
-    # event_id is already validated and converted to int above
-    
-    # Ensure submitted_at is within BIGINT range (PostgreSQL BIGINT: -9223372036854775808 to 9223372036854775807)
-    # Current timestamp in milliseconds is well within this range, but ensure it's an integer
-    submitted_at = int(submitted_at)
-    # Ensure it's within safe range (should be fine for current timestamps)
-    if submitted_at > 9223372036854775807:
-      submitted_at = 9223372036854775807
-    elif submitted_at < -9223372036854775808:
-      submitted_at = -9223372036854775808
-    
-    # Ensure event_id is within INTEGER range and is actually an integer
-    # PostgreSQL INTEGER: -2147483648 to 2147483647
-    event_id = int(event_id) if event_id else None
-    if event_id and (event_id > 2147483647 or event_id < -2147483648):
-      return {
-        "message": "Invalid event ID",
-        "success": False,
-        "error": f"eventId {event_id} is out of range for PostgreSQL INTEGER type"
-      }, 400
-    
-    # Ensure REAL values are properly typed (float, can be None for optional fields)
-    # PostgreSQL REAL can handle None/NULL values
-    overall_satisfaction_val = float(overall_satisfaction) if overall_satisfaction else 0.0
-    beneficiary_rating_val = float(beneficiary_rating) if beneficiary_rating is not None else (float(overall_satisfaction) if overall_satisfaction else None)
-    organization_rating_val = float(organization_rating) if organization_rating else None
-    communication_rating_val = float(communication_rating) if communication_rating else None
-    venue_rating_val = float(venue_rating) if venue_rating else None
-    materials_rating_val = float(materials_rating) if materials_rating else None
-    support_rating_val = float(support_rating) if support_rating else None
-    
-    try:
-      cursor.execute(insert_query, (
-        event_id, event_type, requirement_id, "Beneficiary", 
-        request.json.get("email", "") or "", request.json.get("name", "") or "",
-        overall_satisfaction_val, None, beneficiary_rating_val,
-        organization_rating_val, communication_rating_val, venue_rating_val, materials_rating_val, support_rating_val,
-        q13 or "", q14 or str(overall_satisfaction) if overall_satisfaction else "", comment or "", recommendations or "",
-        would_recommend,
-        None,
-        comment if overall_satisfaction >= 4 else None,
-        submitted_at, finalized_value
-      ))
+    # Execute INSERT - SAME parameter order as evaluateByRequirement
+    cursor.execute(insert_query, (
+      event_id, event_type, requirement_id, "Beneficiary",
+      request.json.get("email", "") or "", request.json.get("name", "") or "",
+      overall_satisfaction, None, beneficiary_rating,
+      organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
+      q13, q14, comment, recommendations,
+      would_recommend_val,
+      None,  # Areas for improvement
+      comment if overall_satisfaction >= 4 else None,  # Positive aspects
+      submitted_at, finalized_val
+    ))
       conn.commit()
       conn.close()
       
