@@ -1,7 +1,7 @@
 from ..models.AccountModel import AccountModel
 from ..models.MembershipModel import MembershipModel
 from ..models.SessionModel import SessionModel
-from ..modules.Mailer import threadedHtmlMailer
+from ..modules.Mailer import threadedHtmlMailer, isEmailConfigured, validateEmailConfig, htmlMailer
 from flask import request
 import traceback
 
@@ -248,3 +248,67 @@ def checkApplicationStatus():
       "submittedDate": member.get("created_at", "Unknown")
     }
   }
+
+def testEmail():
+  """Test email system configuration and send a test email"""
+  from flask import request
+  
+  try:
+    # Check email configuration
+    is_configured = isEmailConfigured()
+    
+    if not is_configured:
+      return {
+        "success": False,
+        "configured": False,
+        "message": "Email not configured. AUTOMAILER_EMAIL and AUTOMAILER_PASSW must be set.",
+        "smtp_test": None
+      }
+    
+    # Test SMTP connection
+    validation = validateEmailConfig()
+    
+    # Get test email from query parameter or use the configured email
+    test_email = request.args.get('email', None)
+    
+    result = {
+      "success": True,
+      "configured": True,
+      "smtp_test": validation,
+      "message": validation.get("message", "Email configuration check completed")
+    }
+    
+    # If test email provided, try to send
+    if test_email:
+      test_html = """
+      <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #c07f00;">Test Email from Sulambi VOSA</h2>
+          <p>This is a test email to verify the email system is working correctly in deployment.</p>
+          <p>If you received this email, the email system is configured and functioning properly!</p>
+          <hr style="margin: 20px 0;">
+          <p style="color: #666; font-size: 12px;">Sent from Sulambi VOSA System - Deployment Test</p>
+        </body>
+      </html>
+      """
+      
+      email_sent = htmlMailer(test_email, "Test Email - Sulambi VOSA Email System", test_html)
+      
+      result["test_email_sent"] = email_sent
+      result["test_email_address"] = test_email
+      if email_sent:
+        result["message"] = f"Email configuration is valid and test email sent to {test_email}"
+      else:
+        result["message"] = f"Email configuration check passed but failed to send test email to {test_email}"
+    
+    return result
+    
+  except Exception as e:
+    import traceback
+    traceback.print_exc()
+    return {
+      "success": False,
+      "configured": False,
+      "message": f"Error testing email system: {str(e)}",
+      "smtp_test": None
+    }

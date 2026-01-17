@@ -230,11 +230,14 @@ const FormDataLoaderModal: React.FC<Props> = ({
             margin-left: 0.7in;
             margin-right: 0.8in;
             size: letter;
-          }
-          
-          @page {
-            @bottom-center {
+            @bottom-left {
               content: "Tracking No. : ___________";
+              font-family: "Times New Roman", Times, serif;
+              font-size: 10pt;
+              color: black;
+            }
+            @bottom-right {
+              content: "Page " counter(page);
               font-family: "Times New Roman", Times, serif;
               font-size: 10pt;
               color: black;
@@ -246,9 +249,6 @@ const FormDataLoaderModal: React.FC<Props> = ({
             margin-bottom: 0.7in;
             margin-left: 0.7in;
             margin-right: 0.8in;
-          }
-          
-          @page:first {
             @bottom-left {
               content: "Tracking No. : ___________";
               font-family: "Times New Roman", Times, serif;
@@ -265,28 +265,6 @@ const FormDataLoaderModal: React.FC<Props> = ({
           
           @media print {
             /* Hide browser default headers and footers */
-            @page {
-              margin-top: 0.6in;
-              margin-bottom: 0.7in;
-              margin-left: 0.7in;
-              margin-right: 0.8in;
-              size: letter;
-            }
-            
-            @page {
-              @bottom-left {
-                content: "Tracking No. : ___________";
-                font-family: "Times New Roman", Times, serif;
-                font-size: 10pt;
-                color: black;
-              }
-              @bottom-right {
-                content: "Page " counter(page);
-                font-family: "Times New Roman", Times, serif;
-                font-size: 10pt;
-                color: black;
-              }
-            }
             
             /* Hide everything except print container */
             body > *:not(#print-container-temp) {

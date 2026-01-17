@@ -20,6 +20,10 @@ def authLogoutRoute(usertoken):
 def checkApplicationStatusRoute():
   return auth.checkApplicationStatus()
 
+@AuthBlueprint.get('/test-email')
+def testEmailRoute():
+  return auth.testEmail()
+
 @AuthBlueprint.before_request
 def authMiddleware():
   if (request.method not in ["OPTIONS", "GET", "DELETE"]):
