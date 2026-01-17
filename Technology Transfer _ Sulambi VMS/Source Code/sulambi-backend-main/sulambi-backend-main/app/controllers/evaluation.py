@@ -269,35 +269,66 @@ def evaluateByRequirement(requirementId):
     except:
       pass
     
-    # Check if already exists
-    cursor.execute("""
-      SELECT id FROM satisfactionSurveys 
-      WHERE requirementId = ? AND respondentEmail = ?
-    """, (requirementId, requirement.get("email", "")))
+    # Check if already exists - handle both SQLite and PostgreSQL
+    from ..database.connection import DATABASE_URL, quote_identifier, convert_placeholders, convert_boolean_value
+    is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
+    
+    if is_postgresql:
+      check_query = """
+        SELECT id FROM "satisfactionSurveys" 
+        WHERE requirementid = %s AND respondentemail = %s
+      """
+    else:
+      check_query = """
+        SELECT id FROM satisfactionSurveys 
+        WHERE requirementId = ? AND respondentEmail = ?
+      """
+    
+    cursor.execute(check_query, (requirementId, requirement.get("email", "")))
     
     if not cursor.fetchone():
       # Insert into satisfactionSurveys
       submitted_at = int(datetime.now().timestamp() * 1000)
       
-      cursor.execute("""
-        INSERT INTO satisfactionSurveys (
-          eventId, eventType, requirementId, respondentType, respondentEmail, respondentName,
-          overallSatisfaction, volunteerRating, beneficiaryRating,
-          organizationRating, communicationRating, venueRating, materialsRating, supportRating,
-          q13, q14, comment, recommendations,
-          wouldRecommend, areasForImprovement, positiveAspects,
-          submittedAt, finalized
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      """, (
+      if is_postgresql:
+        # PostgreSQL: columns are lowercase (unquoted in CREATE TABLE = lowercase in PostgreSQL)
+        insert_query = """
+          INSERT INTO "satisfactionSurveys" (
+            eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
+            overallsatisfaction, volunteerrating, beneficiaryrating,
+            organizationrating, communicationrating, venuerating, materialsrating, supportrating,
+            q13, q14, comment, recommendations,
+            wouldrecommend, areasforimprovement, positiveaspects,
+            submittedat, finalized
+          ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        finalized_val = convert_boolean_value(True)
+        would_recommend_val = convert_boolean_value(overall_satisfaction >= 4 if overall_satisfaction > 0 else None)
+      else:
+        # SQLite: use unquoted identifiers and ? placeholders
+        insert_query = """
+          INSERT INTO satisfactionSurveys (
+            eventId, eventType, requirementId, respondentType, respondentEmail, respondentName,
+            overallSatisfaction, volunteerRating, beneficiaryRating,
+            organizationRating, communicationRating, venueRating, materialsRating, supportRating,
+            q13, q14, comment, recommendations,
+            wouldRecommend, areasForImprovement, positiveAspects,
+            submittedAt, finalized
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        finalized_val = True
+        would_recommend_val = overall_satisfaction >= 4 if overall_satisfaction > 0 else None
+      
+      cursor.execute(insert_query, (
         event_id, event_type, requirementId, respondent_type, 
         requirement.get("email", ""), requirement.get("fullname", ""),
         overall_satisfaction, volunteer_rating, beneficiary_rating,
         organization_rating, communication_rating, venue_rating, materials_rating, support_rating,
         q13, q14, request.json.get("comment", ""), request.json.get("recommendations", ""),
-        overall_satisfaction >= 4 if overall_satisfaction > 0 else None,  # Would recommend if rating >= 4
+        would_recommend_val,
         None,  # Areas for improvement
         request.json.get("comment", "") if overall_satisfaction >= 4 else None,  # Positive aspects
-        submitted_at, True
+        submitted_at, finalized_val
       ))
       conn.commit()
     
@@ -411,16 +442,16 @@ def submitBeneficiaryEvaluation():
     is_postgresql = DATABASE_URL and DATABASE_URL.startswith('postgresql://')
     
     if is_postgresql:
-      # PostgreSQL: use quoted identifiers and %s placeholders
+      # PostgreSQL: columns are lowercase (unquoted in CREATE TABLE = lowercase in PostgreSQL)
       table_name = quote_identifier('satisfactionSurveys')
       insert_query = f"""
         INSERT INTO {table_name} (
-          "eventId", "eventType", "requirementId", "respondentType", "respondentEmail", "respondentName",
-          "overallSatisfaction", "volunteerRating", "beneficiaryRating",
-          "organizationRating", "communicationRating", "venueRating", "materialsRating", "supportRating",
+          eventid, eventtype, requirementid, respondenttype, respondentemail, respondentname,
+          overallsatisfaction, volunteerrating, beneficiaryrating,
+          organizationrating, communicationrating, venuerating, materialsrating, supportrating,
           q13, q14, comment, recommendations,
-          "wouldRecommend", "areasForImprovement", "positiveAspects",
-          "submittedAt", finalized
+          wouldrecommend, areasforimprovement, positiveaspects,
+          submittedat, finalized
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
       """
     else:
