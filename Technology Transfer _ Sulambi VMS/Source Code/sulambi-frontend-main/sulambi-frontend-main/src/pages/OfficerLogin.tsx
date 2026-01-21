@@ -37,25 +37,18 @@ const OfficerLogin = () => {
 
   const navigate = useNavigate();
 
+  // When opening the login page, clear any stale auth data instead of forcing redirect.
+  // This prevents being auto-redirected back into a previous account when you explicitly
+  // want to switch users.
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const accountType = localStorage.getItem("accountType");
-
-    if (token && accountType) {
-      showSnackbarMessage("User already logged in", "info");
-      switch (accountType) {
-        case "admin":
-          redirectLoggedIn("/admin/dashboard");
-          break;
-        case "member":
-          showSnackbarMessage("Cached membership user data");
-          redirectLoggedIn("/member");
-          break;
-        case "officer":
-          redirectLoggedIn("/officer");
-          break;
-      }
+    if (token) {
+      console.log("[FRONTEND_LOGIN] Clearing stale token on login page load");
     }
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    localStorage.removeItem("accountType");
+    localStorage.removeItem("membershipCache");
   }, []);
 
   const loginButtonAction = async () => {

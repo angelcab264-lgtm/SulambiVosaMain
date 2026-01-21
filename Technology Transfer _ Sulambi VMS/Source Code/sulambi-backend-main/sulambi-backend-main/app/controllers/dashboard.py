@@ -5,6 +5,7 @@ from ..models.MembershipModel import MembershipModel
 from ..models.AccountModel import AccountModel
 from ..models.RequirementsModel import RequirementsModel
 from ..models.EvaluationModel import EvaluationModel
+from ..database.connection import convert_boolean_value
 
 from datetime import datetime
 
@@ -172,7 +173,12 @@ def getEventInformation(eventId: int, eventType: str):
           "message": "Internal event not found"
         }, 404)
 
-    allrequirements = RequirementsModel().getAndSearch(["eventId", "type", "accepted"], [eventId, eventType, 1])
+    # Use database-appropriate boolean value for \"accepted\"
+    accepted_val = convert_boolean_value(1)
+    allrequirements = RequirementsModel().getAndSearch(
+      [\"eventId\", \"type\", \"accepted\"],
+      [eventId, eventType, accepted_val]
+    )
     answered = 0
 
     for requirement in allrequirements:
@@ -208,8 +214,10 @@ def getActiveMemberData():
   responseSummary = {}
   detailedMembers = []
 
-  # Use 1 (integer) instead of True (boolean) since database stores active/accepted as integers
-  activeMembers = MembershipModel().getAndSearch(["active", "accepted"], [1, 1])
+  # Use database-appropriate boolean values for active/accepted
+  active_val = convert_boolean_value(1)
+  accepted_val = convert_boolean_value(1)
+  activeMembers = MembershipModel().getAndSearch(["active", "accepted"], [active_val, accepted_val])
   current_time_ms = int(datetime.now().timestamp()) * 1000
   ms_per_day = 1000 * 60 * 60 * 24
 
@@ -218,8 +226,7 @@ def getActiveMemberData():
     userFullname = activeMember["fullname"]
     
     # Only get accepted requirements (real volunteer registrations)
-    # Use 1 (integer) instead of True (boolean) since database stores accepted as integer
-    matchedRequirements = RequirementsModel().getAndSearch(["email", "accepted"], [userEmailIndicator, 1])
+    matchedRequirements = RequirementsModel().getAndSearch(["email", "accepted"], [userEmailIndicator, accepted_val])
     
     # Skip members who haven't actually volunteered (no accepted requirements)
     if len(matchedRequirements) == 0:
