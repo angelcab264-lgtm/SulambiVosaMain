@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import FlexBox from '../FlexBox';
 import { Typography, Box, Chip, LinearProgress, Select, MenuItem, FormControl, InputLabel, CircularProgress, Alert, Button } from '@mui/material';
 import { TrendingUp, TrendingDown, TrendingFlat, Visibility } from '@mui/icons-material';
@@ -12,7 +12,13 @@ import { CACHE_TIMES } from '../../utils/apiCache';
 const PredictiveSatisfactionRatings: React.FC = () => {
   const { accountDetails } = useContext(AccountDetailsContext);
   const [selectedYear, setSelectedYear] = useState('');
+  const selectedYearRef = useRef(selectedYear);
   const [satisfactionData, setSatisfactionData] = useState<any[]>([]);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    selectedYearRef.current = selectedYear;
+  }, [selectedYear]);
   const [topIssues, setTopIssues] = useState<any[]>([]);
   const [currentTrend, setCurrentTrend] = useState('Stable');
   const [averageScore, setAverageScore] = useState(0);
@@ -104,13 +110,16 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   }, [selectedEventForAnalytics, isAdmin]);
 
   // Use cached fetch for satisfaction analytics.
-  // Previously this was filtered by year; now we always fetch analytics for all years (no year filter).
+  // Fetch with year parameter when a specific year is selected to get accurate counts
   const { data: satisfactionResponse, loading: satisfactionLoading, error: satisfactionError, refetch: refetchSatisfaction } = useCachedFetch({
-    cacheKey: 'satisfaction_analytics_all',
+    cacheKey: selectedYear && selectedYear !== 'all' ? `satisfaction_analytics_${selectedYear}` : 'satisfaction_analytics_all',
     fetchFn: async () => {
       try {
-        // Request analytics without a specific year to include all data
-        return await getSatisfactionAnalytics();
+        // Request analytics with year parameter if a specific year is selected
+        // Use ref to get current value (avoids closure issues)
+        const currentYear = selectedYearRef.current;
+        const yearParam = currentYear && currentYear !== 'all' ? currentYear : undefined;
+        return await getSatisfactionAnalytics(yearParam);
       } catch (error: any) {
         // Handle 500 errors - check if response has data even with 500 status
         const status = error?.response?.status || error?.status || (error?.message?.includes('500') ? 500 : null);
@@ -150,6 +159,13 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     useMemoryCache: true,
     enabled: true,
   });
+  
+  // Refetch when selectedYear changes (cacheKey changes will trigger refetch, but ensure fetchFn uses current selectedYear)
+  useEffect(() => {
+    if (selectedYear) {
+      refetchSatisfaction();
+    }
+  }, [selectedYear, refetchSatisfaction]);
 
   // Initialize with default years 2024-2026 (or up to current year) - older years hidden per request
   useEffect(() => {
@@ -462,20 +478,116 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   // Admin comparison removed: no filteredEvents needed
 
-  // Year-based filtering: use selected year when set, otherwise all data
+  // Year-based filtering: aggregate semesters by year when a specific year is selected
   const filteredData = useMemo(() => {
     if (!selectedYear || selectedYear === 'all') {
-      return satisfactionData;
+      // For "All Years", aggregate semesters by year
+      const yearAggregated: { [key: string]: any } = {};
+      satisfactionData.forEach((item: any) => {
+        const year = String(item.semester).split('-')[0];
+        if (!yearAggregated[year]) {
+          yearAggregated[year] = {
+            semester: year,
+            score: 0,
+            volunteers: null as number | null,
+            beneficiaries: null as number | null,
+            volunteerScores: [] as number[],
+            beneficiaryScores: [] as number[],
+            overallScores: [] as number[],
+          };
+        }
+        yearAggregated[year].overallScores.push(item.score || 0);
+        if (item.volunteers != null && item.volunteers !== undefined) {
+          yearAggregated[year].volunteerScores.push(item.volunteers);
+        }
+        if (item.beneficiaries != null && item.beneficiaries !== undefined) {
+          yearAggregated[year].beneficiaryScores.push(item.beneficiaries);
+        }
+      });
+      
+      // Calculate averages for each year
+      return Object.values(yearAggregated).map((yearData: any) => ({
+        semester: yearData.semester,
+        score: yearData.overallScores.length > 0 
+          ? Number((yearData.overallScores.reduce((a: number, b: number) => a + b, 0) / yearData.overallScores.length).toFixed(1))
+          : 0,
+        volunteers: yearData.volunteerScores.length > 0
+          ? Number((yearData.volunteerScores.reduce((a: number, b: number) => a + b, 0) / yearData.volunteerScores.length).toFixed(1))
+          : null,
+        beneficiaries: yearData.beneficiaryScores.length > 0
+          ? Number((yearData.beneficiaryScores.reduce((a: number, b: number) => a + b, 0) / yearData.beneficiaryScores.length).toFixed(1))
+          : null,
+      }));
     }
-    return satisfactionData.filter((item: any) =>
+    
+    // For a specific year, filter and aggregate semesters within that year
+    const yearData = satisfactionData.filter((item: any) =>
       String(item.semester).startsWith(String(selectedYear))
     );
+    
+    if (yearData.length === 0) {
+      return [];
+    }
+    
+    // Aggregate all semesters in the selected year into a single entry
+    const aggregated = {
+      semester: selectedYear,
+      score: 0,
+      volunteers: null as number | null,
+      beneficiaries: null as number | null,
+      volunteerScores: [] as number[],
+      beneficiaryScores: [] as number[],
+      overallScores: [] as number[],
+    };
+    
+    yearData.forEach((item: any) => {
+      aggregated.overallScores.push(item.score || 0);
+      if (item.volunteers != null && item.volunteers !== undefined) {
+        aggregated.volunteerScores.push(item.volunteers);
+      }
+      if (item.beneficiaries != null && item.beneficiaries !== undefined) {
+        aggregated.beneficiaryScores.push(item.beneficiaries);
+      }
+    });
+    
+    return [{
+      semester: selectedYear,
+      score: aggregated.overallScores.length > 0
+        ? Number((aggregated.overallScores.reduce((a: number, b: number) => a + b, 0) / aggregated.overallScores.length).toFixed(1))
+        : 0,
+      volunteers: aggregated.volunteerScores.length > 0
+        ? Number((aggregated.volunteerScores.reduce((a: number, b: number) => a + b, 0) / aggregated.volunteerScores.length).toFixed(1))
+        : null,
+      beneficiaries: aggregated.beneficiaryScores.length > 0
+        ? Number((aggregated.beneficiaryScores.reduce((a: number, b: number) => a + b, 0) / aggregated.beneficiaryScores.length).toFixed(1))
+        : null,
+    }];
   }, [satisfactionData, selectedYear]);
   
-  // Recalculate averages and counts based on filtered data when year selection changes
+  // Recalculate averages and counts based on filtered data and API response when year selection changes
   useEffect(() => {
+    // Use counts directly from API response (backend already filters by year correctly)
+    const responseData = satisfactionResponse;
+    if (responseData?.success && responseData?.data) {
+      const apiVolunteerCount = responseData.data.volunteerCount || 0;
+      const apiBeneficiaryCount = responseData.data.beneficiaryCount || 0;
+      const apiTotalCount = responseData.data.totalCount || 0;
+      
+      // Update counts from API (these are already filtered by year if year parameter was passed)
+      setVolunteerCount(apiVolunteerCount);
+      setBeneficiaryCount(apiBeneficiaryCount);
+      setTotalCount(apiTotalCount);
+      
+      // Store original counts for "All Years" view
+      if (!selectedYear || selectedYear === 'all') {
+        setOriginalVolunteerCount(apiVolunteerCount);
+        setOriginalBeneficiaryCount(apiBeneficiaryCount);
+        setOriginalTotalCount(apiTotalCount);
+      }
+    }
+    
     if (filteredData.length > 0) {
-      // Calculate averages from filtered data
+      // Calculate averages from filtered data (aggregated by year)
       const avgOverall = Number((filteredData.reduce((s: number, it: any) => s + (it.score || 0), 0) / filteredData.length).toFixed(1));
       
       const volunteerData = filteredData.filter((it: any) => it.volunteers != null && it.volunteers !== undefined);
@@ -491,20 +603,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       setAverageScore(avgOverall);
       setVolunteerScore(avgVol);
       setBeneficiaryScore(avgBen);
-      
-      // Calculate counts proportionally based on filtered data
-      if (selectedYear && selectedYear !== 'all' && satisfactionData.length > 0) {
-        // Proportional counts based on number of semesters
-        const proportion = filteredData.length / satisfactionData.length;
-        setVolunteerCount(Math.round(originalVolunteerCount * proportion));
-        setBeneficiaryCount(Math.round(originalBeneficiaryCount * proportion));
-        setTotalCount(Math.round(originalTotalCount * proportion));
-      } else {
-        // For "All Years", use the original API counts
-        setVolunteerCount(originalVolunteerCount);
-        setBeneficiaryCount(originalBeneficiaryCount);
-        setTotalCount(originalTotalCount);
-      }
     } else {
       // No filtered data - reset to zero
       setAverageScore(0);
@@ -514,7 +612,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       setBeneficiaryCount(0);
       setTotalCount(0);
     }
-  }, [filteredData, selectedYear, satisfactionData.length, originalVolunteerCount, originalBeneficiaryCount, originalTotalCount]);
+  }, [filteredData, selectedYear, satisfactionResponse]);
   
   // Admin comparison removed: no comparison effect
 
