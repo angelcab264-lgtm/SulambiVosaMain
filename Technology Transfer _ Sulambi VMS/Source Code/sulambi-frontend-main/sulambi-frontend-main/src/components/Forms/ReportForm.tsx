@@ -80,10 +80,24 @@ const ReportForm: React.FC<Props> = (props) => {
   }, [open, isEditMode, initialData]);
 
   const submitAction = () => {
+    console.log("[REPORT_FORM] Submit clicked", {
+      isEditMode,
+      eventId,
+      reportId,
+      type,
+      hasFormData: !!formData,
+    });
     setOpenConfirmModal(true);
   };
 
   const confirmedSubmitAction = () => {
+    console.log("[REPORT_FORM] Confirmed submit", {
+      isEditMode,
+      eventId,
+      reportId,
+      type,
+      formData,
+    });
     const formUploadable = new FormData();
     formUploadable.append("eventId", eventId.toString());
     formUploadable.append("narrative", formData.narrative ?? "");

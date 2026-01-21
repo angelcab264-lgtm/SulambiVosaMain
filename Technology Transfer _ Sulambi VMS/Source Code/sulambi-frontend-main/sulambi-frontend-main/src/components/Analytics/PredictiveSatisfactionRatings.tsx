@@ -21,6 +21,10 @@ const PredictiveSatisfactionRatings: React.FC = () => {
   const [volunteerCount, setVolunteerCount] = useState(0);
   const [beneficiaryCount, setBeneficiaryCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  // Store original API counts for "All Years" view
+  const [originalVolunteerCount, setOriginalVolunteerCount] = useState(0);
+  const [originalBeneficiaryCount, setOriginalBeneficiaryCount] = useState(0);
+  const [originalTotalCount, setOriginalTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Note: eventsLoading is now controlled by cached fetch
@@ -262,6 +266,11 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             if (responseData?.data) {
               volunteerCountFromAPI = responseData.data.volunteerCount || 0;
               beneficiaryCountFromAPI = responseData.data.beneficiaryCount || 0;
+              // Store original counts for "All Years" view
+              setOriginalVolunteerCount(volunteerCountFromAPI);
+              setOriginalBeneficiaryCount(beneficiaryCountFromAPI);
+              setOriginalTotalCount(responseData.data.totalCount || 0);
+              // Set current counts (will be updated by filtered data effect if year is selected)
               setVolunteerCount(volunteerCountFromAPI);
               setBeneficiaryCount(beneficiaryCountFromAPI);
               setTotalCount(responseData.data.totalCount || 0);
@@ -462,6 +471,50 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       String(item.semester).startsWith(String(selectedYear))
     );
   }, [satisfactionData, selectedYear]);
+  
+  // Recalculate averages and counts based on filtered data when year selection changes
+  useEffect(() => {
+    if (filteredData.length > 0) {
+      // Calculate averages from filtered data
+      const avgOverall = Number((filteredData.reduce((s: number, it: any) => s + (it.score || 0), 0) / filteredData.length).toFixed(1));
+      
+      const volunteerData = filteredData.filter((it: any) => it.volunteers != null && it.volunteers !== undefined);
+      const avgVol = volunteerData.length > 0
+        ? Number((volunteerData.reduce((s: number, it: any) => s + (it.volunteers || 0), 0) / volunteerData.length).toFixed(1))
+        : 0;
+      
+      const beneficiaryData = filteredData.filter((it: any) => it.beneficiaries != null && it.beneficiaries !== undefined);
+      const avgBen = beneficiaryData.length > 0
+        ? Number((beneficiaryData.reduce((s: number, it: any) => s + (it.beneficiaries || 0), 0) / beneficiaryData.length).toFixed(1))
+        : 0;
+      
+      setAverageScore(avgOverall);
+      setVolunteerScore(avgVol);
+      setBeneficiaryScore(avgBen);
+      
+      // Calculate counts proportionally based on filtered data
+      if (selectedYear && selectedYear !== 'all' && satisfactionData.length > 0) {
+        // Proportional counts based on number of semesters
+        const proportion = filteredData.length / satisfactionData.length;
+        setVolunteerCount(Math.round(originalVolunteerCount * proportion));
+        setBeneficiaryCount(Math.round(originalBeneficiaryCount * proportion));
+        setTotalCount(Math.round(originalTotalCount * proportion));
+      } else {
+        // For "All Years", use the original API counts
+        setVolunteerCount(originalVolunteerCount);
+        setBeneficiaryCount(originalBeneficiaryCount);
+        setTotalCount(originalTotalCount);
+      }
+    } else {
+      // No filtered data - reset to zero
+      setAverageScore(0);
+      setVolunteerScore(0);
+      setBeneficiaryScore(0);
+      setVolunteerCount(0);
+      setBeneficiaryCount(0);
+      setTotalCount(0);
+    }
+  }, [filteredData, selectedYear, satisfactionData.length, originalVolunteerCount, originalBeneficiaryCount, originalTotalCount]);
   
   // Admin comparison removed: no comparison effect
 
