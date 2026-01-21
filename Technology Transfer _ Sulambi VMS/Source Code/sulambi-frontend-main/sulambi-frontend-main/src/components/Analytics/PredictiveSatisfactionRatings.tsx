@@ -99,12 +99,14 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     }
   }, [selectedEventForAnalytics, isAdmin]);
 
-  // Use cached fetch for satisfaction analytics - prevents reloading when navigating
+  // Use cached fetch for satisfaction analytics.
+  // Previously this was filtered by year; now we always fetch analytics for all years (no year filter).
   const { data: satisfactionResponse, loading: satisfactionLoading, error: satisfactionError, refetch: refetchSatisfaction } = useCachedFetch({
-    cacheKey: `satisfaction_analytics_${selectedYear || 'all'}`,
+    cacheKey: 'satisfaction_analytics_all',
     fetchFn: async () => {
       try {
-        return await getSatisfactionAnalytics(selectedYear || undefined);
+        // Request analytics without a specific year to include all data
+        return await getSatisfactionAnalytics();
       } catch (error: any) {
         // Handle 500 errors - check if response has data even with 500 status
         const status = error?.response?.status || error?.status || (error?.message?.includes('500') ? 500 : null);
@@ -142,21 +144,19 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     },
     cacheTime: CACHE_TIMES.SHORT, // Refresh every 30 seconds (more dynamic data)
     useMemoryCache: true,
-    enabled: !!selectedYear, // Only fetch when year is selected (will be set on mount)
+    enabled: true,
   });
 
-  // Initialize with default years 2020-2026 (even if no data yet)
+  // Initialize with default years 2024-2026 (or up to current year) - older years hidden per request
   useEffect(() => {
     if (availableYears.length === 0) {
       const currentYear = new Date().getFullYear();
       const years = [];
-      for (let year = 2020; year <= Math.max(currentYear, 2026); year++) {
+      // Start from 2024 to hide 2020-2023 from the dropdown
+      for (let year = 2024; year <= Math.max(currentYear, 2026); year++) {
         years.push(String(year));
       }
       setAvailableYears(years);
-      if (!selectedYear) {
-        setSelectedYear(String(currentYear));
-      }
     }
   }, []);
 
@@ -187,11 +187,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   // Process satisfaction data when response changes
   useEffect(() => {
-    // Early return if no year selected - let the initialization useEffect handle it
-    if (!selectedYear) {
-      return;
-    }
-
     const loadSatisfactionData = () => {
       try {
         setError(null);
@@ -294,15 +289,15 @@ const PredictiveSatisfactionRatings: React.FC = () => {
               )
             ) as string[];
             
-            // Always include years 2020-2026 even if no data yet
+            // Always include years 2024-2026 (or up to current year) even if no data yet
             const dataYears = yearsRaw
               .map((y) => parseInt(String(y), 10))
               .filter((y) => !isNaN(y) && y >= 2000 && y <= currentYear + 1)
               .sort((a, b) => a - b);
             
-            // Merge with default years (2020-2026)
+            // Merge with default years (2024-2026 or up to current year)
             const defaultYears = [];
-            for (let year = 2020; year <= Math.max(currentYear, 2026); year++) {
+            for (let year = 2024; year <= Math.max(currentYear, 2026); year++) {
               defaultYears.push(year);
             }
             
@@ -323,10 +318,10 @@ const PredictiveSatisfactionRatings: React.FC = () => {
             setBeneficiaryCount(0);
             setTotalCount(0);
             
-            // Keep all years 2020-2026 available even if no data
+            // Keep all years 2024-2026 (or up to current year) available even if no data
             const currentYear = new Date().getFullYear();
             const years = [];
-            for (let year = 2020; year <= Math.max(currentYear, 2026); year++) {
+            for (let year = 2024; year <= Math.max(currentYear, 2026); year++) {
               years.push(String(year));
             }
             setAvailableYears(years.length > 0 ? years : [String(currentYear)]);
@@ -343,10 +338,10 @@ const PredictiveSatisfactionRatings: React.FC = () => {
           setVolunteerScore(0);
           setBeneficiaryScore(0);
           
-          // Keep all years 2020-2026 available even if no data
+          // Keep all years 2024-2026 (or up to current year) available even if no data
           const currentYear = new Date().getFullYear();
           const years = [];
-          for (let year = 2020; year <= Math.max(currentYear, 2026); year++) {
+          for (let year = 2024; year <= Math.max(currentYear, 2026); year++) {
             years.push(String(year));
           }
           setAvailableYears(years.length > 0 ? years : [String(currentYear)]);
@@ -454,12 +449,14 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   // Admin comparison removed: no filteredEvents needed
 
-  // Filter data by year - memoized to prevent unnecessary recalculations
+  // No year-based filtering: use all satisfaction data for predictive analytics
   const filteredData = useMemo(() => {
-    return satisfactionData.filter(item => selectedYear && item.semester.startsWith(selectedYear));
-  }, [satisfactionData, selectedYear]);
+    return satisfactionData;
+  }, [satisfactionData]);
   
   // Admin comparison removed: no comparison effect
+
+  const yearLabel = 'All Years';
 
   const interpretationLines = [
     `Overall Satisfaction: ${averageScore}/5.0 (${totalCount} rating${totalCount !== 1 ? 's' : ''}) — ${currentTrend} trend`,
@@ -518,8 +515,8 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       <>
         {/* Key Metrics Summary */}
         <Box mb={2}>
-          <Typography variant="subtitle2" gutterBottom>
-            Average Satisfaction Scores ({selectedYear}):
+            <Typography variant="subtitle2" gutterBottom>
+            Average Satisfaction Scores ({yearLabel}):
           </Typography>
           <Box mb={1}>
             <FlexBox justifyContent="space-between" alignItems="center" mb={0.5}>
@@ -692,62 +689,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
       
       {/* Admin view toggle removed */}
       
-      {/* Filters - Aligned like search bar */}
-      <FlexBox
-        gap={2}
-        alignItems="center"
-        mb={2}
-        sx={{
-          flexWrap: 'wrap',
-          justifyContent: { xs: 'flex-start', md: 'flex-start' }
-        }}
-      >
-        <FormControl 
-          size="small" 
-          sx={{ 
-            minWidth: 120, 
-            '& .MuiOutlinedInput-root': { height: 36 },
-            '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0 }
-          }}
-        >
-          <InputLabel>Year</InputLabel>
-          <Select
-            value={selectedYear}
-            label="Year"
-            onChange={(e) => setSelectedYear(e.target.value)}
-          >
-            {availableYears.map((yr) => (
-              <MenuItem key={yr} value={yr}>{yr}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        
-        {/* Admin analytics removed */}
-        {false && (
-          <FormControl 
-            size="small" 
-            sx={{ 
-              minWidth: 200, 
-              '& .MuiOutlinedInput-root': { height: 36 },
-              '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0 }
-            }}
-          >
-            <InputLabel>Select Event</InputLabel>
-            <Select
-              value={selectedEventForAnalytics}
-              label="Select Event"
-              onChange={(e) => setSelectedEventForAnalytics(e.target.value)}
-            >
-              <MenuItem value="">-- View All --</MenuItem>
-              {availableEvents.map((event) => (
-                <MenuItem key={event.eventKey} value={event.eventKey}>
-                  {event.displayName}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
-      </FlexBox>
+      {/* Year / event filters removed - predictive analytics now uses all available years */}
       
       {/* Event-Specific Analytics Display removed */}
       {false && (
@@ -961,38 +903,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         maxWidth="600px"
       >
         <FlexBox flexDirection="column" gap={3}>
-          {/* Filters - Aligned like search bar */}
-          <FlexBox
-            gap={2}
-            alignItems="center"
-            mb={2}
-            sx={{
-              flexWrap: 'wrap',
-              justifyContent: { xs: 'flex-start', md: 'flex-start' }
-            }}
-          >
-            <FormControl 
-              size="small" 
-              sx={{ 
-                minWidth: 120, 
-                '& .MuiOutlinedInput-root': { height: 36 },
-                '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0 }
-              }}
-            >
-              <InputLabel>Year</InputLabel>
-              <Select
-                value={selectedYear}
-                label="Year"
-                onChange={(e) => setSelectedYear(e.target.value)}
-              >
-                {availableYears.map((yr) => (
-                  <MenuItem key={yr} value={yr}>{yr}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            {/* Event Filter for Admin in detailed view (comparison mode removed) */}
-          </FlexBox>
+          {/* Year filter removed in detailed view - analytics now use all years */}
           
           {/* Main Content */}
           {filteredData.length === 0 ? (
@@ -1010,7 +921,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
               {/* Average Satisfaction Scores */}
               <Box>
                 <Typography variant="subtitle2" gutterBottom>
-                  Average Satisfaction Scores ({selectedYear}):
+                  Average Satisfaction Scores ({yearLabel}):
                 </Typography>
                 <Box mb={1}>
                   <FlexBox justifyContent="space-between" alignItems="center" mb={0.5}>
