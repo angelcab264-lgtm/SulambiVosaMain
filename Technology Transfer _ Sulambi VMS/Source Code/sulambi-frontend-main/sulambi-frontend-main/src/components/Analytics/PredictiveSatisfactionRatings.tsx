@@ -157,6 +157,10 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         years.push(String(year));
       }
       setAvailableYears(years);
+      // Default to current year in dropdown
+      if (!selectedYear) {
+        setSelectedYear(String(currentYear));
+      }
     }
   }, []);
 
@@ -449,14 +453,19 @@ const PredictiveSatisfactionRatings: React.FC = () => {
 
   // Admin comparison removed: no filteredEvents needed
 
-  // No year-based filtering: use all satisfaction data for predictive analytics
+  // Year-based filtering: use selected year when set, otherwise all data
   const filteredData = useMemo(() => {
-    return satisfactionData;
-  }, [satisfactionData]);
+    if (!selectedYear || selectedYear === 'all') {
+      return satisfactionData;
+    }
+    return satisfactionData.filter((item: any) =>
+      String(item.semester).startsWith(String(selectedYear))
+    );
+  }, [satisfactionData, selectedYear]);
   
   // Admin comparison removed: no comparison effect
 
-  const yearLabel = 'All Years';
+  const yearLabel = selectedYear && selectedYear !== 'all' ? selectedYear : 'All Years';
 
   const interpretationLines = [
     `Overall Satisfaction: ${averageScore}/5.0 (${totalCount} rating${totalCount !== 1 ? 's' : ''}) — ${currentTrend} trend`,
@@ -687,9 +696,37 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         </FlexBox>
       </FlexBox>
       
-      {/* Admin view toggle removed */}
-      
-      {/* Year / event filters removed - predictive analytics now uses all available years */}
+      {/* Year filter */}
+      <FlexBox
+        gap={2}
+        alignItems="center"
+        mb={2}
+        sx={{
+          flexWrap: 'wrap',
+          justifyContent: { xs: 'flex-start', md: 'flex-start' }
+        }}
+      >
+        <FormControl 
+          size="small" 
+          sx={{ 
+            minWidth: 120, 
+            '& .MuiOutlinedInput-root': { height: 36 },
+            '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0 }
+          }}
+        >
+          <InputLabel>Year</InputLabel>
+          <Select
+            value={selectedYear || 'all'}
+            label="Year"
+            onChange={(e) => setSelectedYear(e.target.value)}
+          >
+            <MenuItem value="all">All Years</MenuItem>
+            {availableYears.map((yr) => (
+              <MenuItem key={yr} value={yr}>{yr}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </FlexBox>
       
       {/* Event-Specific Analytics Display removed */}
       {false && (
@@ -903,8 +940,38 @@ const PredictiveSatisfactionRatings: React.FC = () => {
         maxWidth="600px"
       >
         <FlexBox flexDirection="column" gap={3}>
-          {/* Year filter removed in detailed view - analytics now use all years */}
-          
+          {/* Year filter in detailed view */}
+          <FlexBox
+            gap={2}
+            alignItems="center"
+            mb={2}
+            sx={{
+              flexWrap: 'wrap',
+              justifyContent: { xs: 'flex-start', md: 'flex-start' }
+            }}
+          >
+            <FormControl 
+              size="small" 
+              sx={{ 
+                minWidth: 120, 
+                '& .MuiOutlinedInput-root': { height: 36 },
+                '& .MuiSelect-select': { display: 'flex', alignItems: 'center', py: 0 }
+              }}
+            >
+              <InputLabel>Year</InputLabel>
+              <Select
+                value={selectedYear || 'all'}
+                label="Year"
+                onChange={(e) => setSelectedYear(e.target.value)}
+              >
+                <MenuItem value="all">All Years</MenuItem>
+                {availableYears.map((yr) => (
+                  <MenuItem key={yr} value={yr}>{yr}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </FlexBox>
+
           {/* Main Content */}
           {filteredData.length === 0 ? (
             <Box textAlign="center" py={4}>
