@@ -1,4 +1,4 @@
-import { Box } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import TextHeader from "../../components/Headers/TextHeader";
 import PageLayout from "../PageLayout";
 import { QRCodeSVG } from "qrcode.react";
@@ -17,6 +17,12 @@ const QrOfficerPage = () => {
         >
           <Box textAlign="center" margin="30px 0px">
             <QRCodeSVG value={`${window.location.origin}/qr`} />
+            <Typography
+              variant="body2"
+              sx={{ marginTop: 2, wordBreak: "break-all", color: "text.secondary" }}
+            >
+              {`${window.location.origin}/qr`}
+            </Typography>
           </Box>
           <TextHeader textAlign="center">Evaluation QR Code</TextHeader>
         </Box>

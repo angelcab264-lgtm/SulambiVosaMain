@@ -208,11 +208,33 @@ def acceptRequirements(id: int):
   # create an evaluation template for user to answer
   createdEval = EvaluationDb.create(id, "", "", "", "", "", False)
 
-  # automated mailing executed
-  executeDelayedAction(int(eventDetails["evaluationSendTime"]), lambda: sendRenderedEvaluationMail(
-    eventDetails=eventDetails,
-    requirementDetails=existence
-  ), execAnyway=True)
+  # Determine when to send evaluation email:
+  # - Prefer the later of event durationEnd and evaluationSendTime (both stored as epoch ms)
+  # - This ensures emails are sent only after the event has finished
+  try:
+    duration_end_ms = int(eventDetails.get("durationEnd", 0) or 0)
+  except (TypeError, ValueError):
+    duration_end_ms = 0
+
+  try:
+    eval_send_ms = int(eventDetails.get("evaluationSendTime", 0) or 0)
+  except (TypeError, ValueError):
+    eval_send_ms = 0
+
+  # If evaluationSendTime is not set or is earlier than event end, use event end time
+  target_epoch_ms = max(duration_end_ms, eval_send_ms)
+
+  # If still zero (no timing info), fall back to immediate execution
+  if target_epoch_ms <= 0:
+    print("[REQUIREMENTS_ACCEPT] Warning: No valid durationEnd/evaluationSendTime; sending evaluation email immediately")
+    sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails)
+  else:
+    # Schedule email to be sent after target time (no execAnyway so past times are skipped)
+    executeDelayedAction(
+      target_epoch_ms,
+      lambda: sendRenderedEvaluationMail(requirementDetails=existence, eventDetails=eventDetails),
+      execAnyway=False
+    )
 
   RequirementsDb.updateSpecific(id, ["accepted"], (True,))
   updatedData = RequirementsDb.get(id)
@@ -380,7 +402,10 @@ def sendRenderedEvaluationMail(requirementDetails: dict, eventDetails: dict):
   templateHtml = templateHtml.replace("[name]", requirementDetails.get("fullname"))
   templateHtml = templateHtml.replace("[token]", requirementDetails.get("id"))
   templateHtml = templateHtml.replace("[event-title]", eventDetails.get("title"))
-  templateHtml = templateHtml.replace("[link]", FRONTEND_APP_URL + "/evaluation/" + requirementDetails.get("id"))
+  # Build evaluation link safely, even if FRONTEND_APP_URL is not configured
+  base_url = FRONTEND_APP_URL or ""
+  link = (base_url + "/evaluation/" + str(requirementDetails.get("id"))) if base_url else "/evaluation/" + str(requirementDetails.get("id"))
+  templateHtml = templateHtml.replace("[link]", link)
 
   htmlMailer(
     mailTo=requirementDetails.get("email"),
