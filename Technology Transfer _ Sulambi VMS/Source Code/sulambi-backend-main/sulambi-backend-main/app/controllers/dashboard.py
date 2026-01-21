@@ -173,10 +173,10 @@ def getEventInformation(eventId: int, eventType: str):
           "message": "Internal event not found"
         }, 404)
 
-    # Use database-appropriate boolean value for \"accepted\"
+    # Use database-appropriate boolean value for "accepted"
     accepted_val = convert_boolean_value(1)
     allrequirements = RequirementsModel().getAndSearch(
-      [\"eventId\", \"type\", \"accepted\"],
+      ["eventId", "type", "accepted"],
       [eventId, eventType, accepted_val]
     )
     answered = 0
