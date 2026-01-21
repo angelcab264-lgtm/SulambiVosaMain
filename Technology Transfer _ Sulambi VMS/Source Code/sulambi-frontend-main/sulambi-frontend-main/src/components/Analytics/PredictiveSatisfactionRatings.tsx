@@ -160,13 +160,6 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     enabled: true,
   });
   
-  // Refetch when selectedYear changes (cacheKey changes will trigger refetch, but ensure fetchFn uses current selectedYear)
-  useEffect(() => {
-    if (selectedYear) {
-      refetchSatisfaction();
-    }
-  }, [selectedYear, refetchSatisfaction]);
-
   // Initialize with default years 2024-2026 (or up to current year) - older years hidden per request
   useEffect(() => {
     if (availableYears.length === 0) {
@@ -184,7 +177,7 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     }
   }, []);
 
-  // Listen for rating submission events to refresh data
+  // Listen for rating submission events to refresh data (no aggressive polling)
   useEffect(() => {
     const handleRatingSubmitted = () => {
       console.log('[Satisfaction Analytics] Rating submitted, refreshing data...');
@@ -196,18 +189,12 @@ const PredictiveSatisfactionRatings: React.FC = () => {
     
     // Also listen for storage events (when localStorage changes from another tab)
     window.addEventListener('storage', handleRatingSubmitted);
-    
-    // Poll every 30 seconds as a fallback (cache is 30 seconds, matches cache expiration)
-    const pollInterval = setInterval(() => {
-      refetchSatisfaction();
-    }, 30000); // Poll every 30 seconds (matches cache time)
 
     return () => {
       window.removeEventListener('satisfaction-rating-submitted', handleRatingSubmitted);
       window.removeEventListener('storage', handleRatingSubmitted);
-      clearInterval(pollInterval);
     };
-  }, [refetchSatisfaction, selectedYear]);
+  }, [refetchSatisfaction]);
 
   // Process satisfaction data when response changes
   useEffect(() => {
